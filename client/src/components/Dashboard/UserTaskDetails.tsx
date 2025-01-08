@@ -19,6 +19,21 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import type { User } from "@db/schema";
 
+interface TaskStats {
+  pending: number;
+  completed: number;
+  overdue: number;
+}
+
+interface Task {
+  id: number;
+  title: string;
+  status: "pending" | "in_progress" | "completed" | "cancelled";
+  priority: "low" | "medium" | "high";
+  deadline: string | null;
+  completedAt: string | null;
+}
+
 interface UserTaskDetailsProps {
   user: User | null;
   open: boolean;
@@ -26,12 +41,12 @@ interface UserTaskDetailsProps {
 }
 
 export function UserTaskDetails({ user, open, onOpenChange }: UserTaskDetailsProps) {
-  const { data: taskStats, isLoading: loadingStats } = useQuery({
+  const { data: taskStats, isLoading: loadingStats } = useQuery<TaskStats>({
     queryKey: ["/api/admin/users", user?.id, "tasks/stats"],
     enabled: !!user,
   });
 
-  const { data: tasks, isLoading: loadingTasks } = useQuery({
+  const { data: tasks, isLoading: loadingTasks } = useQuery<Task[]>({
     queryKey: ["/api/admin/users", user?.id, "tasks"],
     enabled: !!user,
   });
@@ -58,7 +73,7 @@ export function UserTaskDetails({ user, open, onOpenChange }: UserTaskDetailsPro
                     <CheckCircle2 className="h-5 w-5 text-green-500" />
                     <div>
                       <p className="text-sm font-medium">Completed Tasks</p>
-                      <p className="text-2xl font-bold">{taskStats?.completed || 0}</p>
+                      <p className="text-2xl font-bold">{taskStats?.completed ?? 0}</p>
                     </div>
                   </div>
                 </CardContent>
@@ -70,7 +85,7 @@ export function UserTaskDetails({ user, open, onOpenChange }: UserTaskDetailsPro
                     <Clock className="h-5 w-5 text-yellow-500" />
                     <div>
                       <p className="text-sm font-medium">Pending Tasks</p>
-                      <p className="text-2xl font-bold">{taskStats?.pending || 0}</p>
+                      <p className="text-2xl font-bold">{taskStats?.pending ?? 0}</p>
                     </div>
                   </div>
                 </CardContent>
@@ -82,7 +97,7 @@ export function UserTaskDetails({ user, open, onOpenChange }: UserTaskDetailsPro
                     <AlertCircle className="h-5 w-5 text-red-500" />
                     <div>
                       <p className="text-sm font-medium">Overdue Tasks</p>
-                      <p className="text-2xl font-bold">{taskStats?.overdue || 0}</p>
+                      <p className="text-2xl font-bold">{taskStats?.overdue ?? 0}</p>
                     </div>
                   </div>
                 </CardContent>
