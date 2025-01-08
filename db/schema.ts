@@ -97,6 +97,16 @@ export const documentComments = pgTable("document_comments", {
   resolved: boolean("resolved").default(false),
 });
 
+export const fileShares = pgTable("file_shares", {
+  id: serial("id").primaryKey(),
+  fileId: integer("file_id").references(() => files.id).notNull(),
+  sharedWithUserId: integer("shared_with_user_id").references(() => users.id).notNull(),
+  sharedByUserId: integer("shared_by_user_id").references(() => users.id).notNull(),
+  sharedAt: timestamp("shared_at").defaultNow().notNull(),
+  expiresAt: timestamp("expires_at"),
+  revoked: boolean("revoked").default(false),
+});
+
 export const documentRelations = relations(documents, ({ one, many }) => ({
   creator: one(users, {
     fields: [documents.createdBy],
@@ -129,11 +139,12 @@ export const documentVersionRelations = relations(documentVersions, ({ one }) =>
   }),
 }));
 
-export const fileRelations = relations(files, ({ one }) => ({
+export const fileRelations = relations(files, ({ one, many }) => ({
   uploader: one(users, {
     fields: [files.uploadedBy],
     references: [users.id],
   }),
+  shares: many(fileShares),
 }));
 
 export const taskRelations = relations(tasks, ({ one }) => ({
@@ -152,6 +163,8 @@ export const userRelations = relations(users, ({ one, many }) => ({
   assignedTasks: many(tasks, { relationName: "assignee" }),
   createdTasks: many(tasks, { relationName: "assigner" }),
   uploadedFiles: many(files),
+  receivedFileShares: many(fileShares, { relationName: "sharedWithUser" }),
+  sharedFiles: many(fileShares, { relationName: "sharedByUser" }),
   createdDocuments: many(documents),
   documentMessages: many(documentMessages),
   documentComments: many(documentComments),
@@ -178,6 +191,21 @@ export const documentCommentRelations = relations(documentComments, ({ one, many
     references: [documentComments.id],
   }),
   replies: many(documentComments),
+}));
+
+export const fileShareRelations = relations(fileShares, ({ one }) => ({
+  file: one(files, {
+    fields: [fileShares.fileId],
+    references: [files.id],
+  }),
+  sharedWithUser: one(users, {
+    fields: [fileShares.sharedWithUserId],
+    references: [users.id],
+  }),
+  sharedByUser: one(users, {
+    fields: [fileShares.sharedByUserId],
+    references: [users.id],
+  }),
 }));
 
 export const loginSchema = z.object({
@@ -241,6 +269,8 @@ export type CompanyProfile = typeof companyProfiles.$inferSelect;
 export type NewCompanyProfile = typeof companyProfiles.$inferInsert;
 export type DocumentComment = typeof documentComments.$inferSelect;
 export type NewDocumentComment = typeof documentComments.$inferInsert;
+export type FileShare = typeof fileShares.$inferSelect;
+export type NewFileShare = typeof fileShares.$inferInsert;
 
 export const insertUserSchema = createInsertSchema(users);
 export const selectUserSchema = createSelectSchema(users);
@@ -250,3 +280,5 @@ export const insertFileSchema = createInsertSchema(files);
 export const selectFileSchema = createSelectSchema(files);
 export const insertCompanyProfileSchema = createInsertSchema(companyProfiles);
 export const selectCompanyProfileSchema = createSelectSchema(companyProfiles);
+export const insertFileShareSchema = createInsertSchema(fileShares);
+export const selectFileShareSchema = createSelectSchema(fileShares);

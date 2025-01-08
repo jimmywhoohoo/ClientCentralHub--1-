@@ -23,7 +23,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
-import { Search, Loader2, Shield, Image, Files, Calendar, Trash2 } from "lucide-react";
+import { Search, Loader2, Shield, Image, Files, Calendar, Trash2, Share2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
   Dialog,
@@ -50,6 +50,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { TaskDashboard } from "../components/Dashboard/TaskDashboard";
+import { FileShareDialog } from "../components/Dashboard/FileShareDialog";
 
 type FileWithUploader = File & {
   uploader: User;
@@ -139,6 +140,7 @@ export default function AdminPage() {
     address: "",
   });
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
+  const [fileToShare, setFileToShare] = useState<FileWithUploader | null>(null);
 
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -629,14 +631,26 @@ export default function AdminPage() {
                               </span>
                             </TableCell>
                             <TableCell>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="text-red-600 hover:text-red-800"
-                                onClick={(e) => handleDeleteFile(file, e)}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
+                              <div className="flex items-center gap-2">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setFileToShare(file);
+                                  }}
+                                >
+                                  <Share2 className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="text-red-600 hover:text-red-800"
+                                  onClick={(e) => handleDeleteFile(file, e)}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
                             </TableCell>
                           </TableRow>
                         ))}
@@ -943,10 +957,9 @@ export default function AdminPage() {
                   </div>
                   <div>
                     <dt className="text-sm text-muted-foreground">Status</dt>
-                    <dd>
-                      <Badge variant={selectedFile?.isArchived ? "secondary" : "default"}>
-                        {selectedFile?.isArchived ? "Archived" : "Active"}
-                      </Badge>
+                    <dd>                    <Badge variant={selectedFile?.isArchived ? "secondary" : "default"}>
+                      {selectedFile?.isArchived ? "Archived" : "Active"}
+                    </Badge>
                     </dd>
                   </div>
                 </dl>
@@ -1017,6 +1030,12 @@ export default function AdminPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      <FileShareDialog
+        file={fileToShare as File}
+        users={data?.users || []}
+        open={!!fileToShare}
+        onOpenChange={(open) => !open && setFileToShare(null)}
+      />
     </div>
   );
 }
