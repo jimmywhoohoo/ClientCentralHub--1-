@@ -272,7 +272,6 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Add these routes before the Notification Routes section
   app.get("/api/admin/users/:userId/tasks/stats", async (req, res) => {
     if (!req.isAuthenticated() || req.user.role !== "admin") {
       return res.status(403).json({ error: "Not authorized" });
@@ -283,9 +282,9 @@ export function registerRoutes(app: Express): Server {
       const now = new Date();
 
       const [stats] = await db.select({
-        pending: sql<number>`COUNT(*) FILTER (WHERE ${tasks.status} = 'pending')`,
-        completed: sql<number>`COUNT(*) FILTER (WHERE ${tasks.status} = 'completed')`,
-        overdue: sql<number>`COUNT(*) FILTER (WHERE ${tasks.status} = 'pending' AND ${tasks.deadline} < ${now})`,
+        pending: sql<number>`COUNT(*) FILTER (WHERE ${tasks.status} = 'pending'::text)`,
+        completed: sql<number>`COUNT(*) FILTER (WHERE ${tasks.status} = 'completed'::text)`,
+        overdue: sql<number>`COUNT(*) FILTER (WHERE ${tasks.status} = 'pending'::text AND ${tasks.deadline} < ${now})`,
       })
         .from(tasks)
         .where(eq(tasks.assignedTo, parseInt(userId)));
@@ -559,6 +558,34 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Add delete task endpoint
+  app.delete("/api/admin/tasks/:id", async (req, res) => {
+    if (!req.isAuthenticated() || req.user.role !== "admin") {
+      return res.status(403).json({ error: "Not authorized" });
+    }
+
+    try {
+      const { id } = req.params;
+      const [task] = await db.select()
+        .from(tasks)
+        .where(eq(tasks.id, parseInt(id)))
+        .limit(1);
+
+      if (!task) {
+        return res.status(404).json({ error: "Task not found" });
+      }
+
+      // Delete the task
+      await db.delete(tasks)
+        .where(eq(tasks.id, parseInt(id)));
+
+      res.json({ message: "Task deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting task:", error);
+      res.status(500).json({ error: "Failed to delete task" });
+    }
+  });
+
   // Add task routes for clients
   app.get("/api/tasks", async (req, res) => {
     if (!req.isAuthenticated()) {
@@ -682,7 +709,7 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Task update route - fix JSON response handling
+  // Fix task update route
   app.put("/api/tasks/:id", async (req, res) => {
     if (!req.isAuthenticated()) {
       return res.status(401).json({ error: "Not authenticated" });
@@ -696,9 +723,12 @@ export function registerRoutes(app: Express): Server {
         });
       }
 
+      const { deadline, ...otherData } = result.data;
+
       const [task] = await db.update(tasks)
         .set({
-          ...result.data,
+          ...otherData,
+          deadline: deadline ? new Date(deadline) : null,
           updatedAt: new Date(),
           ...(result.data.status === 'completed' ? { completedAt: new Date() } : {}),
         })

@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Dialog,
   DialogContent,
@@ -14,9 +14,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Loader2, CheckCircle2, Clock, AlertCircle } from "lucide-react";
+import { Loader2, CheckCircle2, Clock, AlertCircle, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Button } from "@/components/ui/button";
+import { useToast } from "@/hooks/use-toast";
 import type { User } from "@db/schema";
 
 interface TaskStats {
@@ -41,6 +43,9 @@ interface UserTaskDetailsProps {
 }
 
 export function UserTaskDetails({ user, open, onOpenChange }: UserTaskDetailsProps) {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
   const { data: taskStats, isLoading: loadingStats } = useQuery<TaskStats>({
     queryKey: ["/api/admin/users", user?.id, "tasks/stats"],
     enabled: !!user,
@@ -49,6 +54,36 @@ export function UserTaskDetails({ user, open, onOpenChange }: UserTaskDetailsPro
   const { data: tasks, isLoading: loadingTasks } = useQuery<Task[]>({
     queryKey: ["/api/admin/users", user?.id, "tasks"],
     enabled: !!user,
+  });
+
+  const deleteTaskMutation = useMutation({
+    mutationFn: async (taskId: number) => {
+      const response = await fetch(`/api/admin/tasks/${taskId}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        throw new Error(await response.text());
+      }
+
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/users", user?.id, "tasks"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/users", user?.id, "tasks/stats"] });
+      toast({
+        title: "Success",
+        description: "Task deleted successfully",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
   });
 
   if (!user) return null;
@@ -123,6 +158,7 @@ export function UserTaskDetails({ user, open, onOpenChange }: UserTaskDetailsPro
                     <TableHead>Priority</TableHead>
                     <TableHead>Due Date</TableHead>
                     <TableHead>Completed At</TableHead>
+                    <TableHead>Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -164,6 +200,17 @@ export function UserTaskDetails({ user, open, onOpenChange }: UserTaskDetailsPro
                         {task.completedAt
                           ? new Date(task.completedAt).toLocaleDateString()
                           : "-"}
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-red-600 hover:text-red-800"
+                          onClick={() => deleteTaskMutation.mutate(task.id)}
+                          disabled={deleteTaskMutation.isPending}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       </TableCell>
                     </TableRow>
                   ))}
