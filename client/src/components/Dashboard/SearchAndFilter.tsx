@@ -25,9 +25,9 @@ interface SearchAndFilterProps {
 
 export function SearchAndFilter({ onFilterChange, showStatus = true }: SearchAndFilterProps) {
   const [filters, setFilters] = useState<FilterOptions>({
-    status: "",
-    priority: "",
-    dateRange: "",
+    status: "all",
+    priority: "all",
+    dateRange: "all",
     search: "",
   });
 
@@ -39,16 +39,16 @@ export function SearchAndFilter({ onFilterChange, showStatus = true }: SearchAnd
 
   const clearFilters = () => {
     const clearedFilters = {
-      status: "",
-      priority: "",
-      dateRange: "",
+      status: "all",
+      priority: "all",
+      dateRange: "all",
       search: "",
     };
     setFilters(clearedFilters);
     onFilterChange(clearedFilters);
   };
 
-  const activeFiltersCount = Object.values(filters).filter(Boolean).length;
+  const activeFiltersCount = Object.values(filters).filter(value => value !== "all" && value !== "").length;
 
   return (
     <div className="space-y-4">
@@ -74,7 +74,7 @@ export function SearchAndFilter({ onFilterChange, showStatus = true }: SearchAnd
               <SelectValue placeholder="Status" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">All Status</SelectItem>
+              <SelectItem value="all">All Status</SelectItem>
               <SelectItem value="pending">Pending</SelectItem>
               <SelectItem value="in_progress">In Progress</SelectItem>
               <SelectItem value="completed">Completed</SelectItem>
@@ -91,7 +91,7 @@ export function SearchAndFilter({ onFilterChange, showStatus = true }: SearchAnd
             <SelectValue placeholder="Priority" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">All Priority</SelectItem>
+            <SelectItem value="all">All Priority</SelectItem>
             <SelectItem value="low">Low</SelectItem>
             <SelectItem value="medium">Medium</SelectItem>
             <SelectItem value="high">High</SelectItem>
@@ -106,7 +106,7 @@ export function SearchAndFilter({ onFilterChange, showStatus = true }: SearchAnd
             <SelectValue placeholder="Date Range" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">All Time</SelectItem>
+            <SelectItem value="all">All Time</SelectItem>
             <SelectItem value="today">Today</SelectItem>
             <SelectItem value="week">This Week</SelectItem>
             <SelectItem value="month">This Month</SelectItem>
@@ -128,7 +128,7 @@ export function SearchAndFilter({ onFilterChange, showStatus = true }: SearchAnd
       {activeFiltersCount > 0 && (
         <div className="flex gap-2 flex-wrap">
           {Object.entries(filters).map(([key, value]) => {
-            if (!value) return null;
+            if (value === "all" || value === "") return null;
             return (
               <Badge key={key} variant="secondary">
                 {key === "search" ? `"${value}"` : value}

@@ -3,10 +3,10 @@ import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { setupWebSocket } from "./websocket";
 import { db } from "@db";
-import { tasks, users, files, companyProfiles } from "@db/schema";
+import { tasks, users, files, companyProfiles, notificationPreferences } from "@db/schema";
 import { eq, desc, or, asc, and } from "drizzle-orm";
 import { errorHandler, apiErrorLogger } from "./error-handler";
-import { createTaskSchema, updateTaskSchema, updateCompanyProfileSchema } from "@db/schema";
+import { createTaskSchema, updateTaskSchema, updateCompanyProfileSchema, updateNotificationPreferencesSchema } from "@db/schema";
 import { sql } from "drizzle-orm";
 import { generateThumbnail } from './services/thumbnail';
 import path from 'path';
@@ -161,6 +161,79 @@ export function registerRoutes(app: Express): Server {
     } catch (error) {
       console.error("Error serving logo:", error);
       res.status(500).json({ error: "Failed to serve logo" });
+    }
+  });
+
+
+  // Add notification preferences routes
+  app.get("/api/notification-preferences", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ error: "Not authenticated" });
+    }
+
+    try {
+      const [preferences] = await db.query.notificationPreferences.findMany({
+        where: eq(notificationPreferences.userId, req.user.id),
+        limit: 1,
+      });
+
+      if (!preferences) {
+        // Create default preferences if they don't exist
+        const [newPreferences] = await db.insert(notificationPreferences)
+          .values({
+            userId: req.user.id,
+          })
+          .returning();
+
+        return res.json(newPreferences);
+      }
+
+      res.json(preferences);
+    } catch (error) {
+      console.error("Error fetching notification preferences:", error);
+      res.status(500).json({ error: "Failed to fetch notification preferences" });
+    }
+  });
+
+  app.put("/api/notification-preferences", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ error: "Not authenticated" });
+    }
+
+    try {
+      const result = updateNotificationPreferencesSchema.safeParse(req.body);
+      if (!result.success) {
+        return res.status(400).json({
+          error: "Invalid input: " + result.error.issues.map(i => i.message).join(", ")
+        });
+      }
+
+      const [preferences] = await db.query.notificationPreferences.findMany({
+        where: eq(notificationPreferences.userId, req.user.id),
+        limit: 1,
+      });
+
+      if (preferences) {
+        const [updated] = await db.update(notificationPreferences)
+          .set({
+            ...result.data,
+            updatedAt: new Date(),
+          })
+          .where(eq(notificationPreferences.id, preferences.id))
+          .returning();
+        res.json(updated);
+      } else {
+        const [created] = await db.insert(notificationPreferences)
+          .values({
+            userId: req.user.id,
+            ...result.data,
+          })
+          .returning();
+        res.json(created);
+      }
+    } catch (error) {
+      console.error("Error updating notification preferences:", error);
+      res.status(500).json({ error: "Failed to update notification preferences" });
     }
   });
 

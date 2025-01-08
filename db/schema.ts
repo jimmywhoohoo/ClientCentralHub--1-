@@ -125,6 +125,21 @@ export const userAchievements = pgTable("user_achievements", {
   progress: jsonb("progress"),
 });
 
+export const notificationPreferences = pgTable("notification_preferences", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  emailNotifications: boolean("email_notifications").default(true),
+  taskAssignments: boolean("task_assignments").default(true),
+  taskUpdates: boolean("task_updates").default(true),
+  documentSharing: boolean("document_sharing").default(true),
+  documentComments: boolean("document_comments").default(true),
+  achievementUnlocks: boolean("achievement_unlocks").default(true),
+  dailyDigest: boolean("daily_digest").default(false),
+  weeklyDigest: boolean("weekly_digest").default(true),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 export const documentRelations = relations(documents, ({ one, many }) => ({
   creator: one(users, {
     fields: [documents.createdBy],
@@ -178,6 +193,7 @@ export const taskRelations = relations(tasks, ({ one }) => ({
 
 export const userRelations = relations(users, ({ one, many }) => ({
   companyProfile: one(companyProfiles),
+  notificationPreferences: one(notificationPreferences),
   assignedTasks: many(tasks, { relationName: "assignee" }),
   createdTasks: many(tasks, { relationName: "assigner" }),
   uploadedFiles: many(files),
@@ -241,6 +257,14 @@ export const userAchievementRelations = relations(userAchievements, ({ one }) =>
     references: [achievements.id],
   }),
 }));
+
+export const notificationPreferencesRelations = relations(notificationPreferences, ({ one }) => ({
+  user: one(users, {
+    fields: [notificationPreferences.userId],
+    references: [users.id],
+  }),
+}));
+
 
 export const loginSchema = z.object({
   username: z.string().min(1, "Username is required"),
@@ -309,6 +333,8 @@ export type Achievement = typeof achievements.$inferSelect;
 export type NewAchievement = typeof achievements.$inferInsert;
 export type UserAchievement = typeof userAchievements.$inferSelect;
 export type NewUserAchievement = typeof userAchievements.$inferInsert;
+export type NotificationPreferences = typeof notificationPreferences.$inferSelect;
+export type NewNotificationPreferences = typeof notificationPreferences.$inferInsert;
 
 export const insertUserSchema = createInsertSchema(users);
 export const selectUserSchema = createSelectSchema(users);
@@ -324,3 +350,16 @@ export const insertAchievementSchema = createInsertSchema(achievements);
 export const selectAchievementSchema = createSelectSchema(achievements);
 export const insertUserAchievementSchema = createInsertSchema(userAchievements);
 export const selectUserAchievementSchema = createSelectSchema(userAchievements);
+export const insertNotificationPreferencesSchema = createInsertSchema(notificationPreferences);
+export const selectNotificationPreferencesSchema = createSelectSchema(notificationPreferences);
+
+export const updateNotificationPreferencesSchema = z.object({
+  emailNotifications: z.boolean(),
+  taskAssignments: z.boolean(),
+  taskUpdates: z.boolean(),
+  documentSharing: z.boolean(),
+  documentComments: z.boolean(),
+  achievementUnlocks: z.boolean(),
+  dailyDigest: z.boolean(),
+  weeklyDigest: z.boolean(),
+});
