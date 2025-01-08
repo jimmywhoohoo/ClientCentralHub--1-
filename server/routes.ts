@@ -769,46 +769,44 @@ export function registerRoutes(app: Express): Server {
 
       // Check for achievements if task is completed
       if (result.data.status === 'completed' && currentTask.status !== 'completed') {
-        // Get task-related achievements that user hasn't unlocked yet
+        // Get all task-related achievements
         const taskAchievements = await db.query.achievements.findMany({
-          where: and(
-            eq(achievements.category, 'tasks'),
-            not(
-              exists(
-                db.select()
-                  .from(userAchievements)
-                  .where(
-                    and(
-                      eq(userAchievements.userId, req.user.id),
-                      eq(userAchievements.achievementId, sql.placeholder('achievementId'))
-                    )
-                  )
-              )
-            )
-          ),
+          where: eq(achievements.category, 'tasks'),
         });
 
-        // Check each achievement's criteria
-        const completedTasks = await db
+        // Get user's unlocked achievements
+        const unlockedAchievements = await db.query.userAchievements.findMany({
+          where: eq(userAchievements.userId, req.user.id),
+        });
+
+        // Get completed tasks count
+        const [completedTasks] = await db
           .select({ count: sql<number>`count(*)` })
           .from(tasks)
           .where(
             and(
               eq(tasks.assignedTo, req.user.id),
-              eq(tasks.status, "completed")
+              eq(tasks.status, 'completed')
             )
           );
 
+        // Check each achievement
         for (const achievement of taskAchievements) {
+          // Skip if already unlocked
+          if (unlockedAchievements.some(ua => ua.achievementId === achievement.id)) {
+            continue;
+          }
+
           const criteria = achievement.criteria as Record<string, any>;
-          if (completedTasks[0].count >= criteria.tasksCompleted) {
+          if (completedTasks.count >= criteria.tasksCompleted) {
             // Unlock the achievement
             await db.insert(userAchievements)
               .values({
                 userId: req.user.id,
                 achievementId: achievement.id,
+                unlockedAt: new Date(),
                 progress: {
-                  completedTasks: completedTasks[0].count,
+                  completedTasks: completedTasks.count,
                 },
               });
 
@@ -819,6 +817,7 @@ export function registerRoutes(app: Express): Server {
                 type: "achievement_unlocked",
                 title: "New Achievement Unlocked!",
                 message: `You've earned the "${achievement.name}" achievement!`,
+                createdAt: new Date(),
               });
           }
         }
@@ -830,6 +829,7 @@ export function registerRoutes(app: Express): Server {
           taskId: task.id,
           userId: req.user.id,
           action: `changed status to ${result.data.status}`,
+          createdAt: new Date(),
         });
       }
 
@@ -1018,46 +1018,44 @@ export function registerRoutes(app: Express): Server {
 
       // Check for achievements if task is completed
       if (result.data.status === 'completed' && currentTask.status !== 'completed') {
-        // Get task-related achievements that user hasn't unlocked yet
+        // Get all task-related achievements
         const taskAchievements = await db.query.achievements.findMany({
-          where: and(
-            eq(achievements.category, 'tasks'),
-            not(
-              exists(
-                db.select()
-                  .from(userAchievements)
-                  .where(
-                    and(
-                      eq(userAchievements.userId, req.user.id),
-                      eq(userAchievements.achievementId, sql.placeholder('achievementId'))
-                    )
-                  )
-              )
-            )
-          ),
+          where: eq(achievements.category, 'tasks'),
         });
 
-        // Check each achievement's criteria
-        const completedTasks = await db
+        // Get user's unlocked achievements
+        const unlockedAchievements = await db.query.userAchievements.findMany({
+          where: eq(userAchievements.userId, req.user.id),
+        });
+
+        // Get completed tasks count
+        const [completedTasks] = await db
           .select({ count: sql<number>`count(*)` })
           .from(tasks)
           .where(
             and(
               eq(tasks.assignedTo, req.user.id),
-              eq(tasks.status, "completed")
+              eq(tasks.status, 'completed')
             )
           );
 
+        // Check each achievement
         for (const achievement of taskAchievements) {
+          // Skip if already unlocked
+          if (unlockedAchievements.some(ua => ua.achievementId === achievement.id)) {
+            continue;
+          }
+
           const criteria = achievement.criteria as Record<string, any>;
-          if (completedTasks[0].count >= criteria.tasksCompleted) {
+          if (completedTasks.count >= criteria.tasksCompleted) {
             // Unlock the achievement
             await db.insert(userAchievements)
               .values({
                 userId: req.user.id,
                 achievementId: achievement.id,
+                unlockedAt: new Date(),
                 progress: {
-                  completedTasks: completedTasks[0].count,
+                  completedTasks: completedTasks.count,
                 },
               });
 
@@ -1068,6 +1066,7 @@ export function registerRoutes(app: Express): Server {
                 type: "achievement_unlocked",
                 title: "New Achievement Unlocked!",
                 message: `You've earned the "${achievement.name}" achievement!`,
+                createdAt: new Date(),
               });
           }
         }
@@ -1079,6 +1078,7 @@ export function registerRoutes(app: Express): Server {
           taskId: task.id,
           userId: req.user.id,
           action: `changed status to ${result.data.status}`,
+          createdAt: new Date(),
         });
       }
 
