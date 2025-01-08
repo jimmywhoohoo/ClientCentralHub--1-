@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 import type { Task, User } from "@db/schema";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Clock, CheckCircle2, AlertCircle, Plus, Loader2 } from "lucide-react";
+import { Clock, CheckCircle2, AlertCircle, Plus, Loader2, CloudOff, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SearchAndFilter, type FilterOptions } from "./SearchAndFilter";
 import {
@@ -24,8 +24,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
+import { useUser } from "@/hooks/use-user";
 
 interface TaskStats {
   pending: number;
@@ -53,14 +54,19 @@ type PaginatedResponse = {
   };
 };
 
+type SyncStatus = "synced" | "syncing" | "error";
+
 export function TaskDashboard() {
+  const { user } = useUser();
   const [showNewTaskDialog, setShowNewTaskDialog] = useState(false);
   const [filters, setFilters] = useState<FilterOptions>({
-    status: "",
-    priority: "",
-    dateRange: "",
+    status: "all",
+    priority: "all",
+    dateRange: "all",
     search: "",
   });
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>("synced");
+  const [ws, setWs] = useState<WebSocket | null>(null);
   const [newTask, setNewTask] = useState<NewTask>({
     title: "",
     description: "",
@@ -70,6 +76,58 @@ export function TaskDashboard() {
   });
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  // Setup WebSocket connection
+  useEffect(() => {
+    if (!user) return; // Only connect if user is authenticated
+
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${protocol}//${window.location.host}`;
+    const websocket = new WebSocket(wsUrl);
+
+    websocket.onopen = () => {
+      // Send authentication message
+      websocket.send(JSON.stringify({
+        userId: user.id,
+        username: user.username
+      }));
+    };
+
+    websocket.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+
+      if (data.type === 'CONNECTED') {
+        console.log('WebSocket Connected');
+        setSyncStatus("synced");
+      } else if (data.type === 'TASK_UPDATE') {
+        // Invalidate queries to refetch data
+        queryClient.invalidateQueries({ queryKey: ['/api/tasks/stats'] });
+        setSyncStatus("synced");
+      }
+    };
+
+    websocket.onclose = () => {
+      console.log('WebSocket Disconnected');
+      setSyncStatus("error");
+    };
+
+    websocket.onerror = () => {
+      setSyncStatus("error");
+      toast({
+        title: "Connection Error",
+        description: "Unable to connect to real-time updates",
+        variant: "destructive",
+      });
+    };
+
+    setWs(websocket);
+
+    return () => {
+      if (websocket.readyState === WebSocket.OPEN) {
+        websocket.close();
+      }
+    };
+  }, [user]);
 
   const { data: taskStats, isLoading } = useQuery<TaskStats>({
     queryKey: ['/api/tasks/stats', filters],
@@ -81,6 +139,7 @@ export function TaskDashboard() {
 
   const createTaskMutation = useMutation({
     mutationFn: async (task: NewTask) => {
+      setSyncStatus("syncing");
       const formattedTask = {
         ...task,
         deadline: task.deadline ? new Date(task.deadline).toISOString() : null,
@@ -102,6 +161,7 @@ export function TaskDashboard() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/tasks/stats'] });
+      setSyncStatus("synced");
       toast({
         title: "Success",
         description: "Task created successfully",
@@ -116,6 +176,7 @@ export function TaskDashboard() {
       });
     },
     onError: (error: Error) => {
+      setSyncStatus("error");
       toast({
         title: "Error",
         description: error.message,
@@ -148,7 +209,18 @@ export function TaskDashboard() {
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
-        <h2 className="text-xl font-semibold">Task Overview</h2>
+        <div className="flex items-center gap-4">
+          <h2 className="text-xl font-semibold">Task Overview</h2>
+          {syncStatus === "synced" && (
+            <Check className="h-5 w-5 text-green-500" />
+          )}
+          {syncStatus === "syncing" && (
+            <Loader2 className="h-5 w-5 animate-spin text-blue-500" />
+          )}
+          {syncStatus === "error" && (
+            <CloudOff className="h-5 w-5 text-red-500" />
+          )}
+        </div>
         <Button onClick={() => setShowNewTaskDialog(true)}>
           <Plus className="h-4 w-4 mr-2" />
           Create Task
