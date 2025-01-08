@@ -50,44 +50,6 @@ export function TaskList() {
     queryKey: ["/api/tasks"],
   });
 
-  const createTaskMutation = useMutation({
-    mutationFn: async (taskData: NewTaskInput) => {
-      const response = await fetch("/api/tasks", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(taskData),
-        credentials: "include",
-      });
-
-      if (!response.ok) {
-        throw new Error(await response.text());
-      }
-
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/tasks"] });
-      toast({
-        title: "Task Created",
-        description: "Your task has been created successfully.",
-      });
-      setIsNewTaskOpen(false);
-      setNewTask({
-        title: "",
-        description: "",
-        priority: "medium",
-        deadline: null,
-      });
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
-
   const updateTaskMutation = useMutation({
     mutationFn: async ({ id, status }: { id: number; status: string }) => {
       const response = await fetch(`/api/tasks/${id}`, {
@@ -119,11 +81,6 @@ export function TaskList() {
     },
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    createTaskMutation.mutate(newTask);
-  };
-
   if (isLoading) {
     return (
       <Card>
@@ -147,78 +104,7 @@ export function TaskList() {
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between space-y-0">
-        <CardTitle>Tasks</CardTitle>
-        <Dialog open={isNewTaskOpen} onOpenChange={setIsNewTaskOpen}>
-          <DialogTrigger asChild>
-            <Button>New Task</Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Create New Task</DialogTitle>
-            </DialogHeader>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="title">Title</Label>
-                <Input
-                  id="title"
-                  value={newTask.title}
-                  onChange={(e) =>
-                    setNewTask({ ...newTask, title: e.target.value })
-                  }
-                  placeholder="Task title"
-                  required
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="description">Description</Label>
-                <Input
-                  id="description"
-                  value={newTask.description}
-                  onChange={(e) =>
-                    setNewTask({ ...newTask, description: e.target.value })
-                  }
-                  placeholder="Task description"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="priority">Priority</Label>
-                <Select
-                  value={newTask.priority}
-                  onValueChange={(value) =>
-                    setNewTask({ ...newTask, priority: value })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select priority" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="low">Low</SelectItem>
-                    <SelectItem value="medium">Medium</SelectItem>
-                    <SelectItem value="high">High</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="deadline">Deadline</Label>
-                <Input
-                  id="deadline"
-                  type="datetime-local"
-                  value={newTask.deadline || ""}
-                  onChange={(e) =>
-                    setNewTask({ ...newTask, deadline: e.target.value })
-                  }
-                />
-              </div>
-
-              <Button type="submit" className="w-full">
-                Create Task
-              </Button>
-            </form>
-          </DialogContent>
-        </Dialog>
+        <CardTitle>My Tasks</CardTitle>
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
