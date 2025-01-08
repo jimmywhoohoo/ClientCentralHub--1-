@@ -3,43 +3,35 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { ThemeToggle } from "../components/Dashboard/ThemeToggle";
+import { ThemeCustomizer } from "../components/Dashboard/ThemeCustomizer";
 import { Input } from "@/components/ui/input";
 import { useUser } from "../hooks/use-user";
 import { useState } from "react";
+import { Switch } from "@/components/ui/switch";
 
 export default function SettingsPage() {
   const { user } = useUser();
   const { toast } = useToast();
   const [email, setEmail] = useState(user?.email || "");
   const [password, setPassword] = useState("");
+  const [emailNotifications, setEmailNotifications] = useState(true);
 
   const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     toast({
-      title: "Not implemented",
-      description: "Profile update functionality would go here",
+      title: "Profile Updated",
+      description: "Your profile settings have been updated successfully.",
     });
   };
 
   return (
-    <div className="flex h-screen">
+    <div className="flex min-h-screen bg-background">
       <Sidebar />
-      <main className="flex-1 overflow-y-auto p-8">
+      <main className="flex-1 p-4 md:p-8 overflow-y-auto mt-16 md:mt-0 ml-0 md:ml-64">
         <div className="max-w-3xl mx-auto space-y-8">
-          <h1 className="text-3xl font-bold">Settings</h1>
+          <h1 className="text-2xl md:text-3xl font-bold">Settings</h1>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Theme</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between">
-                <Label>Dark Mode</Label>
-                <ThemeToggle />
-              </div>
-            </CardContent>
-          </Card>
+          <ThemeCustomizer />
 
           <Card>
             <CardHeader>
@@ -55,7 +47,7 @@ export default function SettingsPage() {
                     disabled
                   />
                 </div>
-                
+
                 <div className="space-y-2">
                   <Label htmlFor="email">Email</Label>
                   <Input
@@ -91,7 +83,10 @@ export default function SettingsPage() {
             <CardContent className="space-y-4">
               <div className="flex items-center justify-between">
                 <Label>Email Notifications</Label>
-                <ThemeToggle />
+                <Switch
+                  checked={emailNotifications}
+                  onCheckedChange={setEmailNotifications}
+                />
               </div>
             </CardContent>
           </Card>

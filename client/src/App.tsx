@@ -3,6 +3,7 @@ import { Loader2 } from "lucide-react";
 import { Toaster } from "@/components/ui/toaster";
 import AuthPage from "./pages/AuthPage";
 import DashboardPage from "./pages/DashboardPage";
+import SettingsPage from "./pages/SettingsPage";
 import { useUser } from "./hooks/use-user";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 
@@ -49,6 +50,9 @@ function App() {
   return (
     <Switch>
       <Route path="/auth" component={AuthPage} />
+      <Route path="/settings">
+        <ProtectedRoute component={SettingsPage} />
+      </Route>
       <Route path="/">
         <ProtectedRoute component={DashboardPage} />
       </Route>
