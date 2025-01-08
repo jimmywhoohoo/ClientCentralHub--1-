@@ -3,8 +3,10 @@ import { useDropzone } from "react-dropzone";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { FileText, Upload, X, Loader2 } from "lucide-react";
+import { FileText, Upload, X, Loader2, Check } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { AspectRatio } from "@/components/ui/aspect-ratio";
 
 interface UploadDropzoneProps {
   onUploadComplete?: (document: any) => void;
@@ -13,30 +15,11 @@ interface UploadDropzoneProps {
 export function UploadDropzone({ onUploadComplete }: UploadDropzoneProps) {
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
-  const [preview, setPreview] = useState<{ name: string; preview: string } | null>(null);
+  const [preview, setPreview] = useState<{ name: string; preview: string; file: File } | null>(null);
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const { toast } = useToast();
 
-  const onDrop = useCallback(async (acceptedFiles: File[]) => {
-    const file = acceptedFiles[0];
-    if (!file) return;
-
-    // Create preview for the file
-    if (file.type.startsWith('image/')) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setPreview({
-          name: file.name,
-          preview: reader.result as string,
-        });
-      };
-      reader.readAsDataURL(file);
-    } else {
-      setPreview({
-        name: file.name,
-        preview: '',
-      });
-    }
-
+  const handleUpload = async (file: File) => {
     setUploading(true);
     setUploadProgress(0);
 
@@ -53,35 +36,36 @@ export function UploadDropzone({ onUploadComplete }: UploadDropzoneProps) {
       }, 100);
 
       // TODO: Implement actual file upload logic here with FormData
-      // const formData = new FormData();
-      // formData.append('file', file);
-      // const response = await fetch('/api/documents/upload', {
-      //   method: 'POST',
-      //   body: formData,
-      // });
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await fetch('/api/files/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to upload file');
+      }
+
+      const data = await response.json();
 
       // Cleanup and success notification
+      clearInterval(interval);
+      setUploadProgress(100);
       setTimeout(() => {
-        clearInterval(interval);
-        setUploadProgress(100);
-        setTimeout(() => {
-          setUploading(false);
-          setUploadProgress(0);
-          setPreview(null);
-          toast({
-            title: "Success",
-            description: "File uploaded successfully",
-          });
-          if (onUploadComplete) {
-            onUploadComplete({
-              id: Math.random(),
-              name: file.name,
-              createdAt: new Date(),
-              // Add other document properties as needed
-            });
-          }
-        }, 500);
-      }, 2000);
+        setUploading(false);
+        setUploadProgress(0);
+        setPreview(null);
+        setShowConfirmDialog(false);
+        toast({
+          title: "Success",
+          description: "File uploaded successfully",
+        });
+        if (onUploadComplete) {
+          onUploadComplete(data);
+        }
+      }, 500);
     } catch (error) {
       toast({
         title: "Error",
@@ -91,8 +75,35 @@ export function UploadDropzone({ onUploadComplete }: UploadDropzoneProps) {
       setUploading(false);
       setUploadProgress(0);
       setPreview(null);
+      setShowConfirmDialog(false);
     }
-  }, [toast, onUploadComplete]);
+  };
+
+  const onDrop = useCallback(async (acceptedFiles: File[]) => {
+    const file = acceptedFiles[0];
+    if (!file) return;
+
+    // Create preview for the file
+    if (file.type.startsWith('image/')) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setPreview({
+          name: file.name,
+          preview: reader.result as string,
+          file
+        });
+        setShowConfirmDialog(true);
+      };
+      reader.readAsDataURL(file);
+    } else {
+      setPreview({
+        name: file.name,
+        preview: '',
+        file
+      });
+      setShowConfirmDialog(true);
+    }
+  }, []);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
@@ -103,6 +114,7 @@ export function UploadDropzone({ onUploadComplete }: UploadDropzoneProps) {
   const clearPreview = () => {
     if (!uploading) {
       setPreview(null);
+      setShowConfirmDialog(false);
     }
   };
 
@@ -158,18 +170,77 @@ export function UploadDropzone({ onUploadComplete }: UploadDropzoneProps) {
                 </Button>
               )}
             </div>
-            {preview?.preview && (
-              <div className="mt-4">
-                <img
-                  src={preview.preview}
-                  alt="Preview"
-                  className="max-h-48 rounded object-contain mx-auto"
-                />
-              </div>
-            )}
           </CardContent>
         </Card>
       )}
+
+      {/* Confirmation Dialog */}
+      <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm File Upload</DialogTitle>
+            <DialogDescription>
+              Please review your file before confirming the upload
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="flex items-center gap-3">
+              <FileText className="h-5 w-5 text-muted-foreground" />
+              <div>
+                <p className="font-medium">{preview?.name}</p>
+                <p className="text-sm text-muted-foreground">
+                  Size: {preview?.file && (preview.file.size / 1024 / 1024).toFixed(2)} MB
+                </p>
+              </div>
+            </div>
+
+            {preview?.preview && (
+              <AspectRatio ratio={16 / 9} className="bg-muted rounded-md overflow-hidden">
+                <img
+                  src={preview.preview}
+                  alt="Preview"
+                  className="object-contain w-full h-full"
+                />
+              </AspectRatio>
+            )}
+          </div>
+
+          <DialogFooter className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowConfirmDialog(false);
+                clearPreview();
+              }}
+              disabled={uploading}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                if (preview?.file) {
+                  handleUpload(preview.file);
+                }
+              }}
+              disabled={uploading}
+              className="gap-2"
+            >
+              {uploading ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Uploading...
+                </>
+              ) : (
+                <>
+                  <Check className="h-4 w-4" />
+                  Confirm Upload
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
