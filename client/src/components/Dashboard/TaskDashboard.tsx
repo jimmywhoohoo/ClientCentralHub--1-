@@ -10,6 +10,12 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useUser } from "@/hooks/use-user";
 import { TaskErrorDialog } from "./TaskErrorDialog";
+import { motion, AnimatePresence } from "framer-motion";
+import { useState, useEffect, ChangeEvent } from 'react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface TaskStats {
   pending: number;
@@ -28,7 +34,7 @@ interface NewTask {
 }
 
 type PaginatedResponse = {
-  users: any[]; //Type is missing in original, assuming any[] for now.
+  users: any[];
   pagination: {
     total: number;
     page: number;
@@ -49,7 +55,7 @@ type TaskError = {
 export function TaskDashboard() {
   const { user } = useUser();
   const [showNewTaskDialog, setShowNewTaskDialog] = useState(false);
-  const [filters, setFilters] = useState<any>({ //Type is missing in original, assuming any for now.
+  const [filters, setFilters] = useState<any>({
     status: "all",
     priority: "all",
     dateRange: "all",
@@ -70,14 +76,13 @@ export function TaskDashboard() {
 
   // Setup WebSocket connection
   useEffect(() => {
-    if (!user) return; // Only connect if user is authenticated
+    if (!user) return;
 
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsUrl = `${protocol}//${window.location.host}`;
     const websocket = new WebSocket(wsUrl);
 
     websocket.onopen = () => {
-      // Send authentication message
       websocket.send(JSON.stringify({
         userId: user.id,
         username: user.username
@@ -264,7 +269,7 @@ export function TaskDashboard() {
 
     if (taskError.type === 'sync' && taskError.taskId) {
       const task = taskStats?.upcomingDeadlines.find(t => t.id === taskError.taskId) ||
-                  taskStats?.recentlyCompleted.find(t => t.id === taskError.taskId);
+        taskStats?.recentlyCompleted.find(t => t.id === taskError.taskId);
       if (task) {
         updateTaskMutation.mutate(task);
       }
@@ -287,6 +292,96 @@ export function TaskDashboard() {
     }
   };
 
+  const TaskCard = ({ task, isPending = false }: { task: Task; isPending?: boolean }) => (
+    <motion.div
+      layout
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -20 }}
+      transition={{ duration: 0.2 }}
+      key={task.id}
+      className="mb-4 p-4 border rounded-lg space-y-2"
+    >
+      <div className="flex items-center justify-between">
+        <h3 className="font-medium">{task.title}</h3>
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={`${task.id}-${task.status}`}
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.8 }}
+            transition={{ duration: 0.15 }}
+          >
+            <Badge variant={getDueDateVariant(task.deadline ? task.deadline.toString() : null)}>
+              {task.deadline ? format(new Date(task.deadline), 'PP') : 'No deadline'}
+            </Badge>
+          </motion.div>
+        </AnimatePresence>
+      </div>
+      <p className="text-sm text-muted-foreground line-clamp-2">
+        {task.description}
+      </p>
+      <div className="flex items-center justify-between text-xs text-muted-foreground">
+        <span>Priority: {task.priority}</span>
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={`${task.id}-${task.status}-button`}
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            transition={{ duration: 0.2 }}
+          >
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => handleCompleteTask(task)}
+              disabled={updateTaskMutation.isPending}
+              className="relative"
+            >
+              {updateTaskMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : task.status === 'completed' ? (
+                <>
+                  <motion.div
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    transition={{ type: "spring", stiffness: 200, damping: 10 }}
+                  >
+                    Mark as Pending
+                  </motion.div>
+                </>
+              ) : (
+                <>
+                  <motion.div
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    transition={{ type: "spring", stiffness: 200, damping: 10 }}
+                  >
+                    Complete
+                  </motion.div>
+                </>
+              )}
+
+              {/* Success animation overlay */}
+              <AnimatePresence>
+                {task.status === 'completed' && !updateTaskMutation.isPending && (
+                  <motion.div
+                    initial={{ scale: 0, opacity: 0 }}
+                    animate={{ scale: 1.5, opacity: 0 }}
+                    exit={{ scale: 2, opacity: 0 }}
+                    transition={{ duration: 0.5 }}
+                    className="absolute inset-0 flex items-center justify-center"
+                  >
+                    <Check className="w-4 h-4 text-green-500" />
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </Button>
+          </motion.div>
+        </AnimatePresence>
+      </div>
+    </motion.div>
+  );
 
   if (isLoading) {
     return (
@@ -314,15 +409,25 @@ export function TaskDashboard() {
       <div className="flex justify-between items-center">
         <div className="flex items-center gap-4">
           <h2 className="text-xl font-semibold">Task Overview</h2>
-          {syncStatus === "synced" && (
-            <Check className="h-5 w-5 text-green-500" />
-          )}
-          {syncStatus === "syncing" && (
-            <Loader2 className="h-5 w-5 animate-spin text-blue-500" />
-          )}
-          {syncStatus === "error" && (
-            <CloudOff className="h-5 w-5 text-red-500" />
-          )}
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={syncStatus}
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.8 }}
+              transition={{ duration: 0.2 }}
+            >
+              {syncStatus === "synced" && (
+                <Check className="h-5 w-5 text-green-500" />
+              )}
+              {syncStatus === "syncing" && (
+                <Loader2 className="h-5 w-5 animate-spin text-blue-500" />
+              )}
+              {syncStatus === "error" && (
+                <CloudOff className="h-5 w-5 text-red-500" />
+              )}
+            </motion.div>
+          </AnimatePresence>
         </div>
         <Button onClick={() => setShowNewTaskDialog(true)}>
           <Plus className="h-4 w-4 mr-2" />
@@ -331,21 +436,29 @@ export function TaskDashboard() {
       </div>
 
       <div>
-        {/*SearchAndFilter component is missing, assuming this is correct*/}
         <SearchAndFilter onFilterChange={setFilters} />
       </div>
 
-      <div className="grid gap-4 grid-cols-1 md:grid-cols-3">
+      <motion.div
+        layout
+        className="grid gap-4 grid-cols-1 md:grid-cols-3"
+      >
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Pending Tasks</CardTitle>
             <Clock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{taskStats?.pending}</div>
-            <p className="text-xs text-muted-foreground">
-              Active tasks requiring attention
-            </p>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.3 }}
+            >
+              <div className="text-2xl font-bold">{taskStats?.pending}</div>
+              <p className="text-xs text-muted-foreground">
+                Active tasks requiring attention
+              </p>
+            </motion.div>
           </CardContent>
         </Card>
         <Card>
@@ -354,10 +467,16 @@ export function TaskDashboard() {
             <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{taskStats?.completed}</div>
-            <p className="text-xs text-muted-foreground">
-              Successfully finished tasks
-            </p>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.3 }}
+            >
+              <div className="text-2xl font-bold">{taskStats?.completed}</div>
+              <p className="text-xs text-muted-foreground">
+                Successfully finished tasks
+              </p>
+            </motion.div>
           </CardContent>
         </Card>
         <Card>
@@ -366,13 +485,19 @@ export function TaskDashboard() {
             <AlertCircle className="h-4 w-4 text-destructive" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{taskStats?.overdue}</div>
-            <p className="text-xs text-muted-foreground">
-              Tasks past their deadline
-            </p>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.3 }}
+            >
+              <div className="text-2xl font-bold">{taskStats?.overdue}</div>
+              <p className="text-xs text-muted-foreground">
+                Tasks past their deadline
+              </p>
+            </motion.div>
           </CardContent>
         </Card>
-      </div>
+      </motion.div>
 
       <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
         <Card>
@@ -381,37 +506,11 @@ export function TaskDashboard() {
           </CardHeader>
           <CardContent>
             <ScrollArea className="h-[300px] pr-4">
-              {taskStats?.upcomingDeadlines.map((task) => (
-                <div
-                  key={task.id}
-                  className="mb-4 p-4 border rounded-lg space-y-2"
-                >
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-medium">{task.title}</h3>
-                    <Badge variant={getDueDateVariant(task.deadline ? task.deadline.toString() : null)}>
-                      {task.deadline ? format(new Date(task.deadline), 'PP') : 'No deadline'}
-                    </Badge>
-                  </div>
-                  <p className="text-sm text-muted-foreground line-clamp-2">
-                    {task.description}
-                  </p>
-                  <div className="flex items-center justify-between text-xs text-muted-foreground">
-                    <span>Priority: {task.priority}</span>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleCompleteTask(task)}
-                      disabled={updateTaskMutation.isPending}
-                    >
-                      {updateTaskMutation.isPending ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        task.status === 'completed' ? 'Mark as Pending' : 'Complete'
-                      )}
-                    </Button>
-                  </div>
-                </div>
-              ))}
+              <AnimatePresence>
+                {taskStats?.upcomingDeadlines.map((task) => (
+                  <TaskCard key={task.id} task={task} />
+                ))}
+              </AnimatePresence>
             </ScrollArea>
           </CardContent>
         </Card>
@@ -422,37 +521,11 @@ export function TaskDashboard() {
           </CardHeader>
           <CardContent>
             <ScrollArea className="h-[300px] pr-4">
-              {taskStats?.recentlyCompleted.map((task) => (
-                <div
-                  key={task.id}
-                  className="mb-4 p-4 border rounded-lg space-y-2"
-                >
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-medium">{task.title}</h3>
-                    <Badge variant="secondary">
-                      Completed {task.completedAt ? format(new Date(task.completedAt), 'PP') : ''}
-                    </Badge>
-                  </div>
-                  <p className="text-sm text-muted-foreground line-clamp-2">
-                    {task.description}
-                  </p>
-                  <div className="flex items-center justify-between text-xs text-muted-foreground">
-                    <span>Priority: {task.priority}</span>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleCompleteTask(task)}
-                      disabled={updateTaskMutation.isPending}
-                    >
-                      {updateTaskMutation.isPending ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        'Mark as Pending'
-                      )}
-                    </Button>
-                  </div>
-                </div>
-              ))}
+              <AnimatePresence>
+                {taskStats?.recentlyCompleted.map((task) => (
+                  <TaskCard key={task.id} task={task} />
+                ))}
+              </AnimatePresence>
             </ScrollArea>
           </CardContent>
         </Card>
@@ -471,7 +544,7 @@ export function TaskDashboard() {
               <Label>Title</Label>
               <Input
                 value={newTask.title}
-                onChange={(e) => setNewTask({ ...newTask, title: e.target.value })}
+                onChange={(e: ChangeEvent<HTMLInputElement>) => setNewTask({ ...newTask, title: e.target.value })}
                 placeholder="Enter task title"
               />
             </div>
@@ -480,7 +553,7 @@ export function TaskDashboard() {
               <Label>Description</Label>
               <Input
                 value={newTask.description}
-                onChange={(e) => setNewTask({ ...newTask, description: e.target.value })}
+                onChange={(e: ChangeEvent<HTMLInputElement>) => setNewTask({ ...newTask, description: e.target.value })}
                 placeholder="Enter task description"
               />
             </div>
@@ -489,7 +562,7 @@ export function TaskDashboard() {
               <Label>Assign To</Label>
               <Select
                 value={String(newTask.assignedTo)}
-                onValueChange={(value) => setNewTask({ ...newTask, assignedTo: Number(value) })}
+                onValueChange={(value: string) => setNewTask({ ...newTask, assignedTo: Number(value) })}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select a client" />
@@ -528,7 +601,7 @@ export function TaskDashboard() {
               <Input
                 type="datetime-local"
                 value={newTask.deadline}
-                onChange={(e) => setNewTask({ ...newTask, deadline: e.target.value })}
+                onChange={(e: ChangeEvent<HTMLInputElement>) => setNewTask({ ...newTask, deadline: e.target.value })}
               />
             </div>
 
@@ -554,7 +627,6 @@ export function TaskDashboard() {
         onClose={() => setTaskError(null)}
         onRetry={handleRetry}
         onFixPermissions={() => {
-          // Here you could implement a permission request flow
           toast({
             title: "Permission Request",
             description: "Your request has been sent to the administrator.",
@@ -580,4 +652,8 @@ function getDueDateVariant(deadline: string | null): "default" | "secondary" | "
   threeDaysFromNow.setDate(threeDaysFromNow.getDate() + 3);
 
   return dueDate <= threeDaysFromNow ? "default" : "secondary";
+}
+
+function SearchAndFilter(props: { onFilterChange: (filters: any) => void }) {
+  return <div>SearchAndFilter</div>
 }
