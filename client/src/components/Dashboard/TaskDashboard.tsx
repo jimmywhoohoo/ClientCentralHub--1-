@@ -27,6 +27,7 @@ import {
 import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useUser } from "@/hooks/use-user";
+import { TaskErrorDialog } from "./TaskErrorDialog";
 
 interface TaskStats {
   pending: number;
@@ -56,6 +57,13 @@ type PaginatedResponse = {
 
 type SyncStatus = "synced" | "syncing" | "error";
 
+type TaskError = {
+  type: 'sync' | 'validation' | 'permission' | 'network';
+  message: string;
+  taskId?: number;
+  details?: string;
+};
+
 export function TaskDashboard() {
   const { user } = useUser();
   const [showNewTaskDialog, setShowNewTaskDialog] = useState(false);
@@ -76,6 +84,7 @@ export function TaskDashboard() {
   });
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [taskError, setTaskError] = useState<TaskError | null>(null);
 
   // Setup WebSocket connection
   useEffect(() => {
@@ -152,15 +161,25 @@ export function TaskDashboard() {
           },
           userId: user?.id
         }));
+      } else {
+        setTaskError({
+          type: 'network',
+          message: 'Unable to connect to real-time updates.',
+          taskId: task.id,
+          details: 'The WebSocket connection is not available. Your changes will not be synchronized in real-time.'
+        });
+        throw new Error('WebSocket connection not available');
       }
     },
     onError: (error: Error) => {
       setSyncStatus("error");
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
+      if (!taskError) { // Only set error if no error is currently shown
+        setTaskError({
+          type: 'sync',
+          message: error.message,
+          details: 'The task status could not be updated. Please try again.'
+        });
+      }
     },
   });
 
@@ -181,6 +200,25 @@ export function TaskDashboard() {
 
       if (!response.ok) {
         const errorText = await response.text();
+        if (response.status === 403) {
+          setTaskError({
+            type: 'permission',
+            message: 'You do not have permission to create tasks.',
+            details: errorText
+          });
+        } else if (response.status === 400) {
+          setTaskError({
+            type: 'validation',
+            message: 'The task data is invalid.',
+            details: errorText
+          });
+        } else {
+          setTaskError({
+            type: 'network',
+            message: 'Failed to create task.',
+            details: errorText
+          });
+        }
         throw new Error(errorText || 'Failed to create task');
       }
 
@@ -204,11 +242,13 @@ export function TaskDashboard() {
     },
     onError: (error: Error) => {
       setSyncStatus("error");
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
+      if (!taskError) {
+        setTaskError({
+          type: 'network',
+          message: error.message,
+          details: 'There was an error creating the task. Please try again.'
+        });
+      }
     },
   });
 
@@ -217,6 +257,19 @@ export function TaskDashboard() {
       ...task,
       status: task.status === 'completed' ? 'pending' : 'completed'
     });
+  };
+
+  const handleRetry = () => {
+    if (!taskError) return;
+
+    if (taskError.type === 'sync' && taskError.taskId) {
+      const task = taskStats?.upcomingDeadlines.find(t => t.id === taskError.taskId) ||
+                  taskStats?.recentlyCompleted.find(t => t.id === taskError.taskId);
+      if (task) {
+        updateTaskMutation.mutate(task);
+      }
+    }
+    setTaskError(null);
   };
 
   if (isLoading) {
@@ -477,6 +530,19 @@ export function TaskDashboard() {
           </div>
         </DialogContent>
       </Dialog>
+      <TaskErrorDialog
+        error={taskError}
+        onClose={() => setTaskError(null)}
+        onRetry={handleRetry}
+        onFixPermissions={() => {
+          // Here you could implement a permission request flow
+          toast({
+            title: "Permission Request",
+            description: "Your request has been sent to the administrator.",
+          });
+          setTaskError(null);
+        }}
+      />
     </div>
   );
 }
