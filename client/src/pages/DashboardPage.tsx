@@ -17,6 +17,12 @@ interface QuestionnaireType {
   dueDate: string;
 }
 
+interface TaskStats {
+  pending: number;
+  completed: number;
+  overdue: number;
+}
+
 export default function DashboardPage() {
   const isMobile = useIsMobile();
 
@@ -28,29 +34,33 @@ export default function DashboardPage() {
     queryKey: ["/api/questionnaires"],
   });
 
+  const { data: taskStats, isLoading: isLoadingTaskStats } = useQuery<TaskStats>({
+    queryKey: ["/api/tasks/stats"],
+  });
+
   const stats = [
     {
       title: "Pending Tasks",
-      value: "12",
-      change: "+2 from yesterday",
+      value: taskStats?.pending ?? 0,
+      change: `${taskStats?.overdue ?? 0} overdue`,
       icon: <Clock className="h-4 w-4" />
     },
     {
-      title: "Upcoming Deadlines",
-      value: "5",
-      change: "Next: Tax Filing (2d)",
+      title: "Completed Tasks",
+      value: taskStats?.completed ?? 0,
+      change: "Updated in real-time",
       icon: <FileText className="h-4 w-4" />
     },
     {
-      title: "Completed Tasks",
-      value: "28",
-      change: "+8 this week",
+      title: "Task Progress",
+      value: taskStats ? Math.round((taskStats.completed / (taskStats.completed + taskStats.pending)) * 100) + '%' : '0%',
+      change: "Completion rate",
       icon: <TrendingUp className="h-4 w-4" />
     },
     {
-      title: "Active Clients",
-      value: "45",
-      change: "+3 this month",
+      title: "Active Tasks",
+      value: (taskStats?.pending ?? 0) + (taskStats?.completed ?? 0),
+      change: "Total assigned",
       icon: <Users className="h-4 w-4" />
     }
   ];
