@@ -106,7 +106,7 @@ export function setupAuth(app: Express) {
           .send("Invalid input: " + result.error.issues.map(i => i.message).join(", "));
       }
 
-      const { username, password, email } = result.data;
+      const { username, password, email, fullName, companyName, address } = result.data;
 
       const [existingUser] = await db
         .select()
@@ -126,6 +126,9 @@ export function setupAuth(app: Express) {
           username,
           password: hashedPassword,
           email,
+          fullName,
+          companyName,
+          address,
           role: "client",
         })
         .returning();
