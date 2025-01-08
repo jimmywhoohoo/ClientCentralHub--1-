@@ -28,15 +28,26 @@ export const documents = pgTable("documents", {
   accessCount: integer("access_count").default(0),
   lastEditedBy: integer("last_edited_by").references(() => users.id),
   lastEditedAt: timestamp("last_edited_at").defaultNow(),
+  currentVersionId: integer("current_version_id"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const documentVersions = pgTable("document_versions", {
+  id: serial("id").primaryKey(),
+  documentId: integer("document_id").references(() => documents.id),
+  versionNumber: integer("version_number").notNull(),
+  content: text("content").notNull(),
+  createdBy: integer("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  commitMessage: text("commit_message"),
 });
 
 export const documentCollaborators = pgTable("document_collaborators", {
   id: serial("id").primaryKey(),
   documentId: integer("document_id").references(() => documents.id),
   userId: integer("user_id").references(() => users.id),
-  accessLevel: varchar("access_level", { length: 20 }).notNull(), // 'read', 'write', 'admin'
+  accessLevel: varchar("access_level", { length: 20 }).notNull(),
   lastAccessed: timestamp("last_accessed").defaultNow(),
 });
 
@@ -44,7 +55,7 @@ export const documentInteractions = pgTable("document_interactions", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").references(() => users.id),
   documentId: integer("document_id").references(() => documents.id),
-  interactionType: varchar("interaction_type", { length: 20 }).notNull(), // 'view', 'download', 'share'
+  interactionType: varchar("interaction_type", { length: 20 }).notNull(),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -78,8 +89,13 @@ export const documentRelations = relations(documents, ({ one, many }) => ({
     fields: [documents.lastEditedBy],
     references: [users.id],
   }),
+  versions: many(documentVersions),
   collaborators: many(documentCollaborators),
   interactions: many(documentInteractions),
+  currentVersion: one(documentVersions, {
+    fields: [documents.currentVersionId],
+    references: [documentVersions.id],
+  }),
 }));
 
 export const documentInteractionRelations = relations(documentInteractions, ({ one }) => ({
@@ -104,6 +120,17 @@ export const documentCollaboratorRelations = relations(documentCollaborators, ({
   }),
 }));
 
+export const documentVersionRelations = relations(documentVersions, ({ one }) => ({
+  document: one(documents, {
+    fields: [documentVersions.documentId],
+    references: [documents.id],
+  }),
+  creator: one(users, {
+    fields: [documentVersions.createdBy],
+    references: [users.id],
+  }),
+}));
+
 export const responseRelations = relations(responses, ({ one }) => ({
   user: one(users, {
     fields: [responses.userId],
@@ -123,6 +150,7 @@ export const loginSchema = z.object({
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
 export type Document = typeof documents.$inferSelect;
+export type DocumentVersion = typeof documentVersions.$inferSelect;
 export type DocumentInteraction = typeof documentInteractions.$inferSelect;
 export type Questionnaire = typeof questionnaires.$inferSelect;
 export type Response = typeof responses.$inferSelect;
@@ -130,3 +158,9 @@ export type LoginInput = z.infer<typeof loginSchema>;
 
 export const insertUserSchema = createInsertSchema(users);
 export const selectUserSchema = createSelectSchema(users);
+
+export const createVersionSchema = z.object({
+  documentId: z.number(),
+  content: z.string(),
+  commitMessage: z.string().optional(),
+});

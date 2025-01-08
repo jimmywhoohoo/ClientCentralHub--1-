@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { setupWebSocket } from "./websocket";
 import { db } from "@db";
-import { documents, documentInteractions, documentCollaborators, users } from "@db/schema";
+import { documents, documentVersions, documentInteractions, documentCollaborators, users } from "@db/schema";
 import { and, eq, desc, sql } from "drizzle-orm";
 import fs from "fs/promises";
 import path from "path";
@@ -27,6 +27,128 @@ export function registerRoutes(app: Express): Server {
     } catch (error) {
       console.error("Error updating theme:", error);
       res.status(500).send("Failed to update theme");
+    }
+  });
+
+  // Document version history endpoints
+  app.get("/api/documents/:id/versions", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).send("Not authenticated");
+    }
+
+    try {
+      const versions = await db.query.documentVersions.findMany({
+        where: eq(documentVersions.documentId, parseInt(req.params.id)),
+        orderBy: desc(documentVersions.createdAt),
+        with: {
+          creator: true,
+        },
+      });
+
+      res.json(versions);
+    } catch (error) {
+      console.error("Error fetching versions:", error);
+      res.status(500).send("Failed to fetch versions");
+    }
+  });
+
+  app.post("/api/documents/:id/versions", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).send("Not authenticated");
+    }
+
+    const { content, commitMessage } = req.body;
+    const documentId = parseInt(req.params.id);
+
+    try {
+      // Get the latest version number
+      const [latestVersion] = await db
+        .select({ versionNumber: documentVersions.versionNumber })
+        .from(documentVersions)
+        .where(eq(documentVersions.documentId, documentId))
+        .orderBy(desc(documentVersions.versionNumber))
+        .limit(1);
+
+      const nextVersionNumber = (latestVersion?.versionNumber || 0) + 1;
+
+      // Create new version
+      const [version] = await db
+        .insert(documentVersions)
+        .values({
+          documentId,
+          versionNumber: nextVersionNumber,
+          content,
+          createdBy: req.user.id,
+          commitMessage,
+        })
+        .returning();
+
+      // Update document with new version
+      await db
+        .update(documents)
+        .set({
+          content,
+          currentVersionId: version.id,
+          lastEditedBy: req.user.id,
+          lastEditedAt: new Date(),
+        })
+        .where(eq(documents.id, documentId));
+
+      res.json(version);
+    } catch (error) {
+      console.error("Error creating version:", error);
+      res.status(500).send("Failed to create version");
+    }
+  });
+
+  app.post("/api/documents/:id/versions/:versionId/restore", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).send("Not authenticated");
+    }
+
+    const { id, versionId } = req.params;
+
+    try {
+      const [version] = await db
+        .select()
+        .from(documentVersions)
+        .where(eq(documentVersions.id, parseInt(versionId)))
+        .limit(1);
+
+      if (!version) {
+        return res.status(404).send("Version not found");
+      }
+
+      // Create new version with restored content
+      const [newVersion] = await db
+        .insert(documentVersions)
+        .values({
+          documentId: parseInt(id),
+          versionNumber: version.versionNumber + 1,
+          content: version.content,
+          createdBy: req.user.id,
+          commitMessage: `Restored from version ${version.versionNumber}`,
+        })
+        .returning();
+
+      // Update document with restored content
+      await db
+        .update(documents)
+        .set({
+          content: version.content,
+          currentVersionId: newVersion.id,
+          lastEditedBy: req.user.id,
+          lastEditedAt: new Date(),
+        })
+        .where(eq(documents.id, parseInt(id)));
+
+      res.json({
+        content: version.content,
+        version: newVersion,
+      });
+    } catch (error) {
+      console.error("Error restoring version:", error);
+      res.status(500).send("Failed to restore version");
     }
   });
 
