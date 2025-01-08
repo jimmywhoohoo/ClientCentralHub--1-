@@ -12,6 +12,7 @@ import { generateThumbnail } from './services/thumbnail';
 import path from 'path';
 import multer from 'multer';
 import fs from 'fs/promises';
+import { uploadToGoogleDrive } from './services/googleDrive';
 
 // Configure multer for file upload
 const storage = multer.diskStorage({
@@ -523,7 +524,7 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Handle file upload with thumbnail generation
+  // Handle file upload with thumbnail generation and Google Drive upload
   app.post("/api/files/upload", upload.single('file'), async (req, res) => {
     if (!req.isAuthenticated()) {
       return res.status(401).json({ error: "Not authenticated" });
@@ -536,6 +537,23 @@ export function registerRoutes(app: Express): Server {
 
       const thumbnailPath = await generateThumbnail(req.file.path);
 
+      // Try to upload to Google Drive if configured
+      let googleDriveId = null;
+      let googleDriveLink = null;
+
+      try {
+        const driveResult = await uploadToGoogleDrive(
+          req.file.path,
+          req.file.mimetype,
+          req.file.originalname
+        );
+        googleDriveId = driveResult.fileId;
+        googleDriveLink = driveResult.webViewLink;
+      } catch (driveError) {
+        // Log error but continue since local upload might still work
+        console.error("Google Drive upload failed:", driveError);
+      }
+
       const [file] = await db.insert(files)
         .values({
           fileName: req.file.originalname,
@@ -544,6 +562,8 @@ export function registerRoutes(app: Express): Server {
           path: req.file.path,
           thumbnailPath,
           uploadedBy: req.user.id,
+          googleDriveId,
+          googleDriveLink,
         })
         .returning();
 
@@ -918,7 +938,7 @@ export function registerRoutes(app: Express): Server {
   // Notification Routes
   app.get("/api/notifications", async (req, res) => {
     if (!req.isAuthenticated()) {
-      return res.status(401).json({ error: "Not authenticated" });
+      return      return res.status(401).json({ error: "Not authenticated" });
     }
 
     try {

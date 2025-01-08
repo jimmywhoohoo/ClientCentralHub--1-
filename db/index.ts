@@ -1,5 +1,5 @@
-import { drizzle } from "drizzle-orm/neon-http";
-import { neon, neonConfig } from '@neondatabase/serverless';
+import pg from "pg";
+import { drizzle } from "drizzle-orm/node-postgres";
 import * as schema from "@db/schema";
 
 if (!process.env.DATABASE_URL) {
@@ -8,15 +8,19 @@ if (!process.env.DATABASE_URL) {
   );
 }
 
-neonConfig.fetchConnectionCache = true;
+const pool = new pg.Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: {
+    rejectUnauthorized: false
+  }
+});
 
-const sql = neon(process.env.DATABASE_URL!);
-export const db = drizzle(sql, { schema });
+export const db = drizzle(pool, { schema });
 
 // Add a health check function to verify database connectivity
 export async function checkDatabaseConnection() {
   try {
-    await sql`SELECT 1`;
+    await pool.query('SELECT 1');
     return true;
   } catch (error) {
     console.error("Database connection error:", error);

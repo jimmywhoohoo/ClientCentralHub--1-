@@ -69,6 +69,8 @@ export const files = pgTable("files", {
   uploadedAt: timestamp("uploaded_at").defaultNow().notNull(),
   description: text("description"),
   isArchived: boolean("is_archived").default(false),
+  googleDriveId: text("google_drive_id"),
+  googleDriveLink: text("google_drive_link"),
 });
 
 export const tasks = pgTable("tasks", {

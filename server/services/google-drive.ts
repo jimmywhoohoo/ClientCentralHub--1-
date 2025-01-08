@@ -1,8 +1,7 @@
 import { google } from 'googleapis';
 import { db } from '@db';
 import { systemSettings } from '@db/schema';
-import { eq, or } from 'drizzle-orm';
-import fs from 'fs/promises';
+import { eq } from 'drizzle-orm';
 
 interface GoogleDriveConfig {
   clientEmail: string;
@@ -12,13 +11,9 @@ interface GoogleDriveConfig {
 
 export async function getGoogleDriveConfig(): Promise<GoogleDriveConfig | null> {
   try {
-    const settings = await db.select().from(systemSettings).where(
-      or(
-        eq(systemSettings.key, 'GOOGLE_DRIVE_CLIENT_EMAIL'),
-        eq(systemSettings.key, 'GOOGLE_DRIVE_PRIVATE_KEY'),
-        eq(systemSettings.key, 'GOOGLE_DRIVE_FOLDER_ID')
-      )
-    );
+    const settings = await db.query.systemSettings.findMany({
+      where: eq(systemSettings.key, 'GOOGLE_DRIVE_CLIENT_EMAIL'),
+    });
 
     const clientEmail = settings.find(s => s.key === 'GOOGLE_DRIVE_CLIENT_EMAIL')?.value;
     const privateKey = settings.find(s => s.key === 'GOOGLE_DRIVE_PRIVATE_KEY')?.value;
@@ -60,11 +55,9 @@ export async function uploadToGoogleDrive(filePath: string, mimeType: string, fi
     parents: config.folderId ? [config.folderId] : undefined,
   };
 
-  const fileStream = await fs.readFile(filePath);
-
   const media = {
     mimeType,
-    body: Buffer.from(fileStream),
+    body: require('fs').createReadStream(filePath),
   };
 
   try {
