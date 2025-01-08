@@ -52,6 +52,8 @@ import {
 import { TaskDashboard } from "../components/Dashboard/TaskDashboard";
 import { FileShareDialog } from "../components/Dashboard/FileShareDialog";
 import { UserTaskDetails } from "../components/Dashboard/UserTaskDetails";
+import {Label} from "@/components/ui/label" // Added import for Label
+
 
 type FileWithUploader = File & {
   uploader: User;
@@ -1043,6 +1045,113 @@ export default function AdminPage() {
         open={!!selectedUserTasks}
         onOpenChange={(open) => !open && setSelectedUserTasks(null)}
       />
+      <Dialog open={showNewUserDialog} onOpenChange={setShowNewUserDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add New User</DialogTitle>
+            <DialogDescription>
+              Create a new user account
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="username">Username</Label>
+              <Input
+                id="username"
+                value={newUserData.username}
+                onChange={(e) => setNewUserData(prev => ({ ...prev, username: e.target.value }))}
+                placeholder="Enter username"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="password">Password</Label>
+              <Input
+                id="password"
+                type="password"
+                value={newUserData.password}
+                onChange={(e) => setNewUserData(prev => ({ ...prev, password: e.target.value }))}
+                placeholder="Enter password"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                value={newUserData.email}
+                onChange={(e) => setNewUserData(prev => ({ ...prev, email: e.target.value }))}
+                placeholder="Enter email"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="fullName">Full Name</Label>
+              <Input
+                id="fullName"
+                value={newUserData.fullName}
+                onChange={(e) => setNewUserData(prev => ({ ...prev, fullName: e.target.value }))}
+                placeholder="Enter full name"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="companyName">Company Name</Label>
+              <Input
+                id="companyName"
+                value={newUserData.companyName}
+                onChange={(e) => setNewUserData(prev => ({ ...prev, companyName: e.target.value }))}
+                placeholder="Enter company name"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="address">Address</Label>
+              <Input
+                id="address"
+                value={newUserData.address}
+                onChange={(e) => setNewUserData(prev => ({ ...prev, address: e.target.value }))}
+                placeholder="Enter address"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="role">Role</Label>
+              <Select 
+                value={newUserData.role} 
+                onValueChange={(value: "user" | "admin") => 
+                  setNewUserData(prev => ({ ...prev, role: value }))
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select role" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="user">User</SelectItem>
+                  <SelectItem value="admin">Admin</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <Button
+              className="w-full"
+              onClick={() => createUserMutation.mutate(newUserData)}
+              disabled={createUserMutation.isPending}
+            >
+              {createUserMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Creating...
+                </>
+              ) : (
+                'Create User'
+              )}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
