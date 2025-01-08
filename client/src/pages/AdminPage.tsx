@@ -108,7 +108,7 @@ function formatFileSize(bytes: number): string {
 }
 
 export default function AdminPage() {
-  const { user } = useUser();
+  const { user: currentUser } = useUser();
   const [, setLocation] = useLocation();
   const [searchQuery, setSearchQuery] = useState("");
   const [page, setPage] = useState(1);
@@ -137,23 +137,24 @@ export default function AdminPage() {
     role: "user",
     address: "",
   });
+  const [userToDelete, setUserToDelete] = useState<User | null>(null);
 
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
   const { data, isLoading: loadingUsers } = useQuery<PaginatedResponse>({
     queryKey: ["/api/admin/users", page],
-    enabled: user?.role === "admin",
+    enabled: currentUser?.role === "admin",
   });
 
   const { data: userFiles, isLoading: loadingUserFiles } = useQuery<UserFiles>({
     queryKey: ["/api/admin/users", selectedUserFiles?.id, "files", userFilesPage],
-    enabled: !!selectedUserFiles && user?.role === "admin",
+    enabled: !!selectedUserFiles && currentUser?.role === "admin",
   });
 
   const { data: fileData, isLoading: loadingFiles } = useQuery<PaginatedFileResponse>({
     queryKey: ["/api/admin/files", fileListPage],
-    enabled: user?.role === "admin",
+    enabled: currentUser?.role === "admin",
   });
 
   const updateUserMutation = useMutation({
@@ -184,6 +185,36 @@ export default function AdminPage() {
         description: "User updated successfully",
       });
       setSelectedUser(null);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const deleteUserMutation = useMutation({
+    mutationFn: async (userId: number) => {
+      const response = await fetch(`/api/admin/users/${userId}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        throw new Error(await response.text());
+      }
+
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
+      toast({
+        title: "Success",
+        description: "User deleted successfully",
+      });
+      setUserToDelete(null);
     },
     onError: (error: Error) => {
       toast({
@@ -271,7 +302,12 @@ export default function AdminPage() {
     setFileToDelete(file);
   };
 
-  if (user?.role !== "admin") {
+  const handleDeleteUser = (user: User, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setUserToDelete(user);
+  };
+
+  if (currentUser?.role !== "admin") {
     setLocation("/");
     return null;
   }
@@ -409,13 +445,25 @@ export default function AdminPage() {
                               </span>
                             </TableCell>
                             <TableCell>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => setSelectedUser(user)}
-                              >
-                                Edit
-                              </Button>
+                              <div className="flex items-center gap-2">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => setSelectedUser(user)}
+                                >
+                                  Edit
+                                </Button>
+                                {user.id !== currentUser?.id && (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="text-red-600 hover:text-red-800"
+                                    onClick={(e) => handleDeleteUser(user, e)}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                )}
+                              </div>
                             </TableCell>
                           </TableRow>
                         ))}
@@ -935,405 +983,12 @@ export default function AdminPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-      {/* Add New User Dialog */}
-      <Dialog open={showNewUserDialog} onOpenChange={setShowNewUserDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Create New User</DialogTitle>
-            <DialogDescription>
-              Add a new user to the system
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Username</label>
-              <Input
-                value={newUserData.username}
-                onChange={(e) => setNewUserData(prev => ({ ...prev, username: e.target.value }))}
-                placeholder="Enter username"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Password</label>
-              <Input
-                type="password"
-                value={newUserData.password}
-                onChange={(e) => setNewUserData(prev => ({ ...prev, password: e.target.value }))}
-                placeholder="Enter password"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Email</label>
-              <Input
-                type="email"
-                value={newUserData.email}
-                onChange={(e) => setNewUserData(prev => ({ ...prev, email: e.target.value }))}
-                placeholder="Enter email"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Full Name</label>
-              <Input
-                value={newUserData.fullName}
-                onChange={(e) => setNewUserData(prev => ({ ...prev, fullName: e.target.value }))}
-                placeholder="Enter full name"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Company Name</label>
-              <Input
-                value={newUserData.companyName}
-                onChange={(e) => setNewUserData(prev => ({ ...prev, companyName: e.target.value }))}
-                placeholder="Enter company name"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Address</label>
-              <Input
-                value={newUserData.address}
-                onChange={(e) => setNewUserData(prev => ({ ...prev, address: e.target.value }))}
-                placeholder="Enter address"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Role</label>
-              <Select
-                value={newUserData.role}
-                onValueChange={(value: "user" | "admin") => 
-                  setNewUserData(prev => ({ ...prev, role: value }))
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select role" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="user">User</SelectItem>
-                  <SelectItem value="admin">Admin</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <Button
-              className="w-full"
-              onClick={() => createUserMutation.mutate(newUserData)}
-              disabled={createUserMutation.isPending}
-            >
-              {createUserMutation.isPending ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Creating...
-                </>
-              ) : (
-                'Create User'
-              )}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={!!selectedUser} onOpenChange={() => setSelectedUser(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Edit User: {selectedUser?.username}</DialogTitle>
-            <DialogDescription>
-              Modify user details and permissions
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Username</label>
-              <Input
-                value={selectedUser?.username}
-                onChange={(e) => {
-                  if (selectedUser) {
-                    setSelectedUser({
-                      ...selectedUser,
-                      username: e.target.value
-                    });
-                  }
-                }}
-                placeholder="Enter username"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Company Name</label>
-              <Input
-                value={selectedUser?.companyName}
-                onChange={(e) => {
-                  if (selectedUser) {
-                    setSelectedUser({
-                      ...selectedUser,
-                      companyName: e.target.value
-                    });
-                  }
-                }}
-                placeholder="Enter company name"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Role</label>
-              <Select
-                value={selectedUser?.role}
-                onValueChange={(value) => {
-                  if (selectedUser) {
-                    updateUserMutation.mutate({
-                      id: selectedUser.id,
-                      role: value,
-                      active: selectedUser.active,
-                      username: selectedUser.username,
-                      companyName: selectedUser.companyName
-                    });
-                  }
-                }}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select role" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="user">User</SelectItem>
-                  <SelectItem value="admin">Admin</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Status</label>
-              <Select
-                value={selectedUser?.active ? "active" : "inactive"}
-                onValueChange={(value) => {
-                  if (selectedUser) {
-                    updateUserMutation.mutate({
-                      id: selectedUser.id,
-                      role: selectedUser.role,
-                      active: value === "active",
-                      username: selectedUser.username,
-                      companyName: selectedUser.companyName
-                    });
-                  }
-                }}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="active">Active</SelectItem>
-                  <SelectItem value="inactive">Inactive</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <Button
-              className="w-full"
-              onClick={() => {
-                if (selectedUser) {
-                  updateUserMutation.mutate({
-                    id: selectedUser.id,
-                    role: selectedUser.role,
-                    active: selectedUser.active,
-                    username: selectedUser.username,
-                    companyName: selectedUser.companyName
-                  });
-                }
-              }}
-              disabled={updateUserMutation.isPending}
-            >
-              {updateUserMutation.isPending ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Saving...
-                </>
-              ) : (
-                'Save Changes'
-              )}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={!!selectedUserFiles} onOpenChange={() => {
-        setSelectedUserFiles(null);
-        setUserFilesPage(1);
-      }}>
-        <DialogContent className="max-w-4xl">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Files className="h-5 w-5" />
-              Files uploaded by {selectedUserFiles?.fullName}
-            </DialogTitle>
-            <DialogDescription>
-              Company: {selectedUserFiles?.companyName}
-            </DialogDescription>
-          </DialogHeader>
-
-          <ScrollArea className="h-[500px]">
-            {loadingUserFiles ? (
-              <div className="space-y-2">
-                {[...Array(5)].map((_, i) => (
-                  <Skeleton key={i} className="h-12 w-full" />
-                ))}
-              </div>
-            ) : !userFiles?.files?.length ? (
-              <div className="text-center py-8 text-muted-foreground">
-                No files uploaded yet
-              </div>
-            ) : (
-              <div className="rounded-md border">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>File Name</TableHead>
-                      <TableHead>Type</TableHead>
-                      <TableHead>Size</TableHead>
-                      <TableHead>Upload Date</TableHead>
-                      <TableHead>Status</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {userFiles.files.map((file) => (
-                      <TableRow key={file.id}>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            {file.thumbnailPath ? (
-                              <AspectRatio ratio={1} className="w-10 h-10 rounded-md overflow-hidden">
-                                <img
-                                  src={`/api/files/thumbnail/${file.id}`}
-                                  alt={file.fileName}
-                                  className="object-cover w-full h-full"
-                                />
-                              </AspectRatio>
-                            ) : (
-                              <div className="w-10 h-10 rounded-md bg-muted flex items-center justify-center">
-                                <Image className="w-5 h-5 text-muted-foreground" />
-                              </div>
-                            )}
-                            {file.fileName}
-                          </div>
-                        </TableCell>
-                        <TableCell>{file.fileType}</TableCell>
-                        <TableCell>{formatFileSize(file.fileSize)}</TableCell>
-                        <TableCell>
-                          {new Date(file.uploadedAt).toLocaleDateString()}
-                        </TableCell>
-                        <TableCell>
-                          <span className={`px-2 py-1 rounded-full text-xs ${
-                            file.isArchived ? "bg-yellow-100 text-yellow-800" : "bg-green-100 text-green-800"
-                          }`}>
-                            {file.isArchived ? "Archived" : "Active"}
-                          </span>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
-
-            {userFiles?.pagination.pages > 1 && (
-              <div className="flex justify-center gap-2 mt-4">
-                {[...Array(userFiles.pagination.pages)].map((_, i) => (
-                  <Button
-                    key={i}
-                    variant={userFilesPage === i + 1 ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setUserFilesPage(i + 1)}
-                  >
-                    {i + 1}
-                  </Button>
-                ))}
-              </div>
-            )}
-          </ScrollArea>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={!!selectedFile} onOpenChange={() => setSelectedFile(null)}>
-        <DialogContent className="max-w-4xl">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Files className="h-5 w-5" />
-              File Preview: {selectedFile?.fileName}
-            </DialogTitle>
-            <DialogDescription>
-              Uploaded by {selectedFile?.uploader.username} from {selectedFile?.uploader.companyName}
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4">
-            <div className="rounded-lg border bg-card p-4">
-              {selectedFile?.thumbnailPath ? (
-                <AspectRatio ratio={16 / 9}>
-                  <img
-                    src={`/api/files/thumbnail/${selectedFile.id}`}
-                    alt={selectedFile.fileName}
-                    className="rounded-md object-contain w-full h-full"
-                  />
-                </AspectRatio>
-              ) : (
-                <div className="flex items-center justify-center h-48 bg-muted rounded-md">
-                  <Image className="h-16 w-16 text-muted-foreground" />
-                </div>
-              )}
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <h4 className="font-medium text-sm">File Details</h4>
-                <dl className="mt-2 space-y-2">
-                  <div>
-                    <dt className="text-sm text-muted-foreground">Type</dt>
-                    <dd>{selectedFile?.fileType}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-sm text-muted-foreground">Size</dt>
-                    <dd>{formatFileSize(selectedFile?.fileSize || 0)}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-sm text-muted-foreground">Upload Date</dt>
-                    <dd>{selectedFile?.uploadedAt && format(new Date(selectedFile.uploadedAt), "PPP")}</dd>
-                  </div>
-                </dl>
-              </div>
-              <div>
-                <h4 className="font-medium text-sm">Uploader Information</h4>
-                <dl className="mt-2 space-y-2">
-                  <div>
-                    <dt className="text-sm text-muted-foreground">Username</dt>
-                    <dd>{selectedFile?.uploader.username}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-sm text-muted-foreground">Company</dt>
-                    <dd>{selectedFile?.uploader.companyName}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-sm text-muted-foreground">Status</dt>
-                    <dd>
-                      <Badge variant={selectedFile?.isArchived ? "secondary" : "default"}>
-                        {selectedFile?.isArchived ? "Archived" : "Active"}
-                      </Badge>
-                    </dd>
-                  </div>
-                </dl>
-              </div>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-      <AlertDialog open={!!fileToDelete} onOpenChange={(open) => !open && setFileToDelete(null)}>
+      <AlertDialog open={!!userToDelete} onOpenChange={(open) => !open && setUserToDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete File</AlertDialogTitle>
+            <AlertDialogTitle>Delete User</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete "{fileToDelete?.fileName}"? This action cannot be undone.
+              Are you sure you want to delete user "{userToDelete?.username}"? This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -1341,13 +996,13 @@ export default function AdminPage() {
             <AlertDialogAction
               className="bg-red-600 hover:bg-red-700"
               onClick={() => {
-                if (fileToDelete) {
-                  deleteFileMutation.mutate(fileToDelete.id);
+                if (userToDelete) {
+                  deleteUserMutation.mutate(userToDelete.id);
                 }
               }}
-              disabled={deleteFileMutation.isPending}
+              disabled={deleteUserMutation.isPending}
             >
-              {deleteFileMutation.isPending ? (
+              {deleteUserMutation.isPending ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Deleting...
