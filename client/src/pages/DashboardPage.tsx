@@ -9,11 +9,11 @@ import { Clock, FileText, Users, TrendingUp } from "lucide-react";
 import { DocumentRecommendations } from "../components/Dashboard/DocumentRecommendations";
 
 export default function DashboardPage() {
-  const { data: documents } = useQuery<Document[]>({
+  const { data: documents, isLoading: isLoadingDocuments } = useQuery<Document[]>({
     queryKey: ["/api/documents"],
   });
 
-  const { data: questionnaires } = useQuery<QuestionnaireType[]>({
+  const { data: questionnaires, isLoading: isLoadingQuestionnaires } = useQuery<QuestionnaireType[]>({
     queryKey: ["/api/questionnaires"],
   });
 
@@ -87,12 +87,18 @@ export default function DashboardPage() {
           <div className="grid md:grid-cols-2 gap-8">
             <section>
               <h2 className="text-lg font-semibold mb-4">Documents</h2>
-              <DocumentList documents={documents || []} />
+              <DocumentList 
+                documents={documents || []} 
+                isLoading={isLoadingDocuments}
+              />
             </section>
 
             <section>
               <h2 className="text-lg font-semibold mb-4">Questionnaires</h2>
-              <Questionnaire questionnaires={questionnaires || []} />
+              <Questionnaire 
+                questionnaires={questionnaires || []} 
+                isLoading={isLoadingQuestionnaires}
+              />
             </section>
           </div>
         </div>

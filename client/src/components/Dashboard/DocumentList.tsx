@@ -12,12 +12,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface DocumentListProps {
   documents: Document[];
+  isLoading?: boolean;
 }
 
-export function DocumentList({ documents: initialDocuments }: DocumentListProps) {
+export function DocumentList({ documents: initialDocuments, isLoading }: DocumentListProps) {
   const [documents, setDocuments] = useState(initialDocuments);
   const [selectedDocument, setSelectedDocument] = useState<Document | null>(null);
   const { toast } = useToast();
@@ -32,6 +34,31 @@ export function DocumentList({ documents: initialDocuments }: DocumentListProps)
   const handleUploadComplete = (newDocument: Document) => {
     setDocuments((prev) => [newDocument, ...prev]);
   };
+
+  if (isLoading) {
+    return (
+      <div className="space-y-4">
+        {[...Array(3)].map((_, i) => (
+          <Card key={i}>
+            <CardContent className="flex items-center justify-between p-4">
+              <div className="flex items-center gap-3">
+                <Skeleton className="h-5 w-5 rounded" />
+                <div>
+                  <Skeleton className="h-4 w-32 mb-2" />
+                  <Skeleton className="h-3 w-24" />
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <Skeleton className="h-8 w-8 rounded" />
+                <Skeleton className="h-8 w-8 rounded" />
+                <Skeleton className="h-8 w-8 rounded" />
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    );
+  }
 
   return (
     <>
