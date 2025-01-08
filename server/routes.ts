@@ -4,15 +4,80 @@ import { setupAuth } from "./auth";
 import { setupWebSocket } from "./websocket";
 import { db } from "@db";
 import { tasks, users } from "@db/schema";
-import { eq, desc, or } from "drizzle-orm";
+import { eq, desc, or, asc } from "drizzle-orm";
 import { errorHandler, apiErrorLogger } from "./error-handler";
 import { createTaskSchema, updateTaskSchema } from "@db/schema";
+import { sql } from "drizzle-orm";
 
 export function registerRoutes(app: Express): Server {
   setupAuth(app);
 
   // Add error logging middleware
   app.use(apiErrorLogger);
+
+  // Admin Routes
+  app.get("/api/admin/users", async (req, res) => {
+    if (!req.isAuthenticated() || req.user.role !== "admin") {
+      return res.status(403).json({ error: "Not authorized" });
+    }
+
+    try {
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = parseInt(req.query.limit as string) || 10;
+      const offset = (page - 1) * limit;
+
+      const allUsers = await db.query.users.findMany({
+        orderBy: [asc(users.username)],
+        limit,
+        offset,
+      });
+
+      const totalUsers = await db.select({ count: sql<number>`count(*)` })
+        .from(users);
+
+      res.json({
+        users: allUsers,
+        pagination: {
+          total: totalUsers[0].count,
+          page,
+          limit,
+          pages: Math.ceil(totalUsers[0].count / limit),
+        },
+      });
+    } catch (error) {
+      console.error("Error fetching users:", error);
+      res.status(500).json({ error: "Failed to fetch users" });
+    }
+  });
+
+  app.put("/api/admin/users/:id", async (req, res) => {
+    if (!req.isAuthenticated() || req.user.role !== "admin") {
+      return res.status(403).json({ error: "Not authorized" });
+    }
+
+    try {
+      const { id } = req.params;
+      const { role, active } = req.body;
+
+      // Prevent changing own role
+      if (parseInt(id) === req.user.id) {
+        return res.status(400).json({ error: "Cannot modify own account" });
+      }
+
+      const [updatedUser] = await db.update(users)
+        .set({
+          role: role as string,
+          active: active as boolean,
+        })
+        .where(eq(users.id, parseInt(id)))
+        .returning();
+
+      res.json(updatedUser);
+    } catch (error) {
+      console.error("Error updating user:", error);
+      res.status(500).json({ error: "Failed to update user" });
+    }
+  });
 
   // Task Management Routes
   app.get("/api/tasks", async (req, res) => {
