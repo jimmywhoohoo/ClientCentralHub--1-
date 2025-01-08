@@ -58,16 +58,27 @@ export function UserTaskDetails({ user, open, onOpenChange }: UserTaskDetailsPro
 
   const deleteTaskMutation = useMutation({
     mutationFn: async (taskId: number) => {
-      const response = await fetch(`/api/admin/tasks/${taskId}`, {
+      // First delete related task activities
+      const activitiesResponse = await fetch(`/api/admin/tasks/${taskId}/activities`, {
         method: "DELETE",
         credentials: "include",
       });
 
-      if (!response.ok) {
-        throw new Error(await response.text());
+      if (!activitiesResponse.ok) {
+        throw new Error(await activitiesResponse.text());
       }
 
-      return response.json();
+      // Then delete the task
+      const taskResponse = await fetch(`/api/admin/tasks/${taskId}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+
+      if (!taskResponse.ok) {
+        throw new Error(await taskResponse.text());
+      }
+
+      return taskResponse.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/admin/users/${user?.id}/tasks`] });
@@ -209,7 +220,11 @@ export function UserTaskDetails({ user, open, onOpenChange }: UserTaskDetailsPro
                           onClick={() => deleteTaskMutation.mutate(task.id)}
                           disabled={deleteTaskMutation.isPending}
                         >
-                          <Trash2 className="h-4 w-4" />
+                          {deleteTaskMutation.isPending ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Trash2 className="h-4 w-4" />
+                          )}
                         </Button>
                       </TableCell>
                     </TableRow>
