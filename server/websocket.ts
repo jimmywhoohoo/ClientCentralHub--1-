@@ -2,7 +2,7 @@ import { WebSocket, WebSocketServer } from 'ws';
 import type { Server } from 'http';
 import { db } from '@db';
 import { eq } from 'drizzle-orm';
-import { tasks } from '@db/schema';
+import { tasks, taskActivities } from '@db/schema';
 import { randomUUID } from 'crypto';
 
 interface Client {
@@ -132,17 +132,46 @@ export function setupWebSocket(server: Server) {
             .where(eq(tasks.id, parsedMessage.taskId))
             .returning();
 
+          // Create task activity record
+          const [activity] = await db
+            .insert(taskActivities)
+            .values({
+              taskId: parsedMessage.taskId,
+              userId: client.userId,
+              action: `Status changed from ${currentTask.status} to ${parsedMessage.changes.status}`,
+              createdAt: new Date()
+            })
+            .returning();
+
           if (updatedTask) {
             // Broadcast task update to all clients
             broadcastToClients({
               type: 'task_update',
-              task: updatedTask
+              task: updatedTask,
+              activity: {
+                id: activity.id,
+                action: activity.action,
+                createdAt: activity.createdAt,
+                user: {
+                  id: client.userId,
+                  username: client.username
+                }
+              }
             }, clientId);
 
             // Send success response to the originating client
             ws.send(JSON.stringify({
               type: 'task_update_success',
-              task: updatedTask
+              task: updatedTask,
+              activity: {
+                id: activity.id,
+                action: activity.action,
+                createdAt: activity.createdAt,
+                user: {
+                  id: client.userId,
+                  username: client.username
+                }
+              }
             }));
           }
         } catch (error) {

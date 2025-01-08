@@ -140,6 +140,14 @@ export const notificationPreferences = pgTable("notification_preferences", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+export const taskActivities = pgTable("task_activities", {
+  id: serial("id").primaryKey(),
+  taskId: integer("task_id").references(() => tasks.id).notNull(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  action: text("action").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 export const documentRelations = relations(documents, ({ one, many }) => ({
   creator: one(users, {
     fields: [documents.createdBy],
@@ -180,7 +188,7 @@ export const fileRelations = relations(files, ({ one, many }) => ({
   shares: many(fileShares),
 }));
 
-export const taskRelations = relations(tasks, ({ one }) => ({
+export const taskRelations = relations(tasks, ({ one, many }) => ({
   assignee: one(users, {
     fields: [tasks.assignedTo],
     references: [users.id],
@@ -189,6 +197,7 @@ export const taskRelations = relations(tasks, ({ one }) => ({
     fields: [tasks.assignedBy],
     references: [users.id],
   }),
+  activities: many(taskActivities),
 }));
 
 export const userRelations = relations(users, ({ one, many }) => ({
@@ -265,6 +274,17 @@ export const notificationPreferencesRelations = relations(notificationPreference
   }),
 }));
 
+export const taskActivityRelations = relations(taskActivities, ({ one }) => ({
+  task: one(tasks, {
+    fields: [taskActivities.taskId],
+    references: [tasks.id],
+  }),
+  user: one(users, {
+    fields: [taskActivities.userId],
+    references: [users.id],
+  }),
+}));
+
 
 export const loginSchema = z.object({
   username: z.string().min(1, "Username is required"),
@@ -335,6 +355,8 @@ export type UserAchievement = typeof userAchievements.$inferSelect;
 export type NewUserAchievement = typeof userAchievements.$inferInsert;
 export type NotificationPreferences = typeof notificationPreferences.$inferSelect;
 export type NewNotificationPreferences = typeof notificationPreferences.$inferInsert;
+export type TaskActivity = typeof taskActivities.$inferSelect;
+export type NewTaskActivity = typeof taskActivities.$inferInsert;
 
 export const insertUserSchema = createInsertSchema(users);
 export const selectUserSchema = createSelectSchema(users);

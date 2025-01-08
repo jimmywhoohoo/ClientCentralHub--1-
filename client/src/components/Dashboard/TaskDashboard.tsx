@@ -16,6 +16,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { TaskActivityFeed } from "./TaskActivity";
 
 interface TaskStats {
   pending: number;
@@ -52,6 +53,20 @@ type TaskError = {
   details?: string;
 };
 
+interface TaskUpdateMessage {
+  type: 'task_update';
+  task: Task;
+  activity: {
+    id: number;
+    action: string;
+    createdAt: string;
+    user: {
+      id: number;
+      username: string;
+    };
+  };
+}
+
 export function TaskDashboard() {
   const { user } = useUser();
   const [showNewTaskDialog, setShowNewTaskDialog] = useState(false);
@@ -73,8 +88,8 @@ export function TaskDashboard() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [taskError, setTaskError] = useState<TaskError | null>(null);
+  const [activities, setActivities] = useState<TaskUpdateMessage['activity'][]>([]);
 
-  // Setup WebSocket connection
   useEffect(() => {
     if (!user) return;
 
@@ -95,9 +110,13 @@ export function TaskDashboard() {
       if (data.type === 'connected') {
         console.log('WebSocket Connected');
         setSyncStatus("synced");
-      } else if (data.type === 'task_update') {
+      } else if (data.type === 'task_update' || data.type === 'task_update_success') {
         queryClient.invalidateQueries({ queryKey: ['/api/tasks/stats'] });
         setSyncStatus("synced");
+
+        if (data.activity) {
+          setActivities(prev => [data.activity, ...prev].slice(0, 50));
+        }
       } else if (data.type === 'error') {
         setSyncStatus("error");
         setTaskError({
@@ -362,7 +381,6 @@ export function TaskDashboard() {
                 </>
               )}
 
-              {/* Success animation overlay */}
               <AnimatePresence>
                 {task.status === 'completed' && !updateTaskMutation.isPending && (
                   <motion.div
@@ -499,36 +517,44 @@ export function TaskDashboard() {
         </Card>
       </motion.div>
 
-      <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Upcoming Deadlines</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ScrollArea className="h-[300px] pr-4">
-              <AnimatePresence>
-                {taskStats?.upcomingDeadlines.map((task) => (
-                  <TaskCard key={task.id} task={task} />
-                ))}
-              </AnimatePresence>
-            </ScrollArea>
-          </CardContent>
-        </Card>
+      <div className="grid gap-4 grid-cols-1 lg:grid-cols-3">
+        <div className="lg:col-span-2">
+          <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
+            <Card>
+              <CardHeader>
+                <CardTitle>Upcoming Deadlines</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ScrollArea className="h-[300px] pr-4">
+                  <AnimatePresence>
+                    {taskStats?.upcomingDeadlines.map((task) => (
+                      <TaskCard key={task.id} task={task} />
+                    ))}
+                  </AnimatePresence>
+                </ScrollArea>
+              </CardContent>
+            </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Recently Completed</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ScrollArea className="h-[300px] pr-4">
-              <AnimatePresence>
-                {taskStats?.recentlyCompleted.map((task) => (
-                  <TaskCard key={task.id} task={task} />
-                ))}
-              </AnimatePresence>
-            </ScrollArea>
-          </CardContent>
-        </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle>Recently Completed</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ScrollArea className="h-[300px] pr-4">
+                  <AnimatePresence>
+                    {taskStats?.recentlyCompleted.map((task) => (
+                      <TaskCard key={task.id} task={task} />
+                    ))}
+                  </AnimatePresence>
+                </ScrollArea>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+
+        <div className="lg:col-span-1">
+          <TaskActivityFeed activities={activities} />
+        </div>
       </div>
 
       <Dialog open={showNewTaskDialog} onOpenChange={setShowNewTaskDialog}>
