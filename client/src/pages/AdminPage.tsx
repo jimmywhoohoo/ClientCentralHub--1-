@@ -49,6 +49,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { TaskDashboard } from "../components/Dashboard/TaskDashboard";
 
 type FileWithUploader = File & {
   uploader: User;
@@ -388,6 +389,8 @@ export default function AdminPage() {
               </div>
             </div>
           </div>
+
+          <TaskDashboard />
 
           <Card>
             <CardHeader>
