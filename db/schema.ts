@@ -159,6 +159,15 @@ export const notifications = pgTable("notifications", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+export const systemSettings = pgTable("system_settings", {
+  id: serial("id").primaryKey(),
+  key: text("key").unique().notNull(),
+  value: text("value").notNull(),
+  description: text("description"),
+  updatedBy: integer("updated_by").references(() => users.id),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 export const documentRelations = relations(documents, ({ one, many }) => ({
   creator: one(users, {
     fields: [documents.createdBy],
@@ -304,6 +313,12 @@ export const notificationRelations = relations(notifications, ({ one }) => ({
   }),
 }));
 
+export const systemSettingsRelations = relations(systemSettings, ({ one }) => ({
+  updatedByUser: one(users, {
+    fields: [systemSettings.updatedBy],
+    references: [users.id],
+  }),
+}));
 
 export const loginSchema = z.object({
   username: z.string().min(1, "Username is required"),
@@ -378,6 +393,8 @@ export type TaskActivity = typeof taskActivities.$inferSelect;
 export type NewTaskActivity = typeof taskActivities.$inferInsert;
 export type Notification = typeof notifications.$inferSelect;
 export type NewNotification = typeof notifications.$inferInsert;
+export type SystemSetting = typeof systemSettings.$inferSelect;
+export type NewSystemSetting = typeof systemSettings.$inferInsert;
 
 export const insertUserSchema = createInsertSchema(users);
 export const selectUserSchema = createSelectSchema(users);
@@ -395,6 +412,8 @@ export const insertUserAchievementSchema = createInsertSchema(userAchievements);
 export const selectUserAchievementSchema = createSelectSchema(userAchievements);
 export const insertNotificationPreferencesSchema = createInsertSchema(notificationPreferences);
 export const selectNotificationPreferencesSchema = createSelectSchema(notificationPreferences);
+export const insertSystemSettingSchema = createInsertSchema(systemSettings);
+export const selectSystemSettingSchema = createSelectSchema(systemSettings);
 
 export const updateNotificationPreferencesSchema = z.object({
   emailNotifications: z.boolean(),
@@ -405,4 +424,10 @@ export const updateNotificationPreferencesSchema = z.object({
   achievementUnlocks: z.boolean(),
   dailyDigest: z.boolean(),
   weeklyDigest: z.boolean(),
+});
+
+export const updateSystemSettingSchema = z.object({
+  key: z.string(),
+  value: z.string(),
+  description: z.string().optional(),
 });

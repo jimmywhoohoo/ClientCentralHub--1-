@@ -3,10 +3,10 @@ import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { setupWebSocket } from "./websocket";
 import { db } from "@db";
-import { tasks, users, files, companyProfiles, notificationPreferences, notifications, taskActivities, achievements, userAchievements, documentComments } from "@db/schema";
+import { tasks, users, files, companyProfiles, notificationPreferences, notifications, taskActivities, achievements, userAchievements, documentComments, systemSettings } from "@db/schema";
 import { eq, desc, or, asc, and, not, exists } from "drizzle-orm";
 import { errorHandler, apiErrorLogger } from "./error-handler";
-import { createTaskSchema, updateTaskSchema, updateCompanyProfileSchema, updateNotificationPreferencesSchema } from "@db/schema";
+import { createTaskSchema, updateTaskSchema, updateCompanyProfileSchema, updateNotificationPreferencesSchema, updateSystemSettingSchema } from "@db/schema";
 import { sql } from "drizzle-orm";
 import { generateThumbnail } from './services/thumbnail';
 import path from 'path';
@@ -37,6 +37,81 @@ export function registerRoutes(app: Express): Server {
 
   // Add error logging middleware
   app.use(apiErrorLogger);
+
+  // System Settings Routes
+  app.get("/api/admin/settings", async (req, res) => {
+    if (!req.isAuthenticated() || req.user.role !== "admin") {
+      return res.status(403).json({ error: "Not authorized" });
+    }
+
+    try {
+      const settings = await db.query.systemSettings.findMany({
+        with: {
+          updatedByUser: true
+        },
+        orderBy: [asc(systemSettings.key)]
+      });
+
+      res.json(settings);
+    } catch (error) {
+      console.error("Error fetching settings:", error);
+      res.status(500).json({ error: "Failed to fetch settings" });
+    }
+  });
+
+  app.put("/api/admin/settings/:key", async (req, res) => {
+    if (!req.isAuthenticated() || req.user.role !== "admin") {
+      return res.status(403).json({ error: "Not authorized" });
+    }
+
+    try {
+      const { key } = req.params;
+      const result = updateSystemSettingSchema.safeParse(req.body);
+
+      if (!result.success) {
+        return res.status(400).json({
+          error: "Invalid input: " + result.error.issues.map(i => i.message).join(", ")
+        });
+      }
+
+      // Check if setting exists
+      const [existingSetting] = await db.select()
+        .from(systemSettings)
+        .where(eq(systemSettings.key, key))
+        .limit(1);
+
+      if (existingSetting) {
+        // Update existing setting
+        const [updated] = await db.update(systemSettings)
+          .set({
+            value: result.data.value,
+            description: result.data.description,
+            updatedBy: req.user.id,
+            updatedAt: new Date()
+          })
+          .where(eq(systemSettings.key, key))
+          .returning();
+
+        res.json(updated);
+      } else {
+        // Create new setting
+        const [created] = await db.insert(systemSettings)
+          .values({
+            key: key,
+            value: result.data.value,
+            description: result.data.description,
+            updatedBy: req.user.id,
+            updatedAt: new Date()
+          })
+          .returning();
+
+        res.json(created);
+      }
+    } catch (error) {
+      console.error("Error updating setting:", error);
+      res.status(500).json({ error: "Failed to update setting" });
+    }
+  });
 
   // Company Profile Routes
   app.get("/api/company-profile", async (req, res) => {
@@ -770,7 +845,7 @@ export function registerRoutes(app: Express): Server {
       // Check for achievements if task is completed
       if (result.data.status === 'completed' && currentTask.status !== 'completed') {
         // Get all task-related achievements
-        const allAchievements = await db.query.achievements.findMany({
+        const taskAchievements = await db.query.achievements.findMany({
           where: eq(achievements.category, 'tasks'),
         });
 
@@ -780,8 +855,8 @@ export function registerRoutes(app: Express): Server {
         });
 
         // Get completed tasks count
-        const [completedTasksResult] = await db
-          .select({ count: sql<number>`count(*)::integer` })
+        const [completedTasks] = await db
+          .select({ count: sql<number>`count(*)` })
           .from(tasks)
           .where(
             and(
@@ -790,24 +865,24 @@ export function registerRoutes(app: Express): Server {
             )
           );
 
-        const completedTasksCount = completedTasksResult?.count || 0;
-
         // Check each achievement
-        for (const achievement of allAchievements) {
+        for (const achievement of taskAchievements) {
           // Skip if already unlocked
           if (unlockedAchievements.some(ua => ua.achievementId === achievement.id)) {
             continue;
           }
 
           const criteria = achievement.criteria as Record<string, any>;
-          if (criteria?.tasksCompleted && completedTasksCount >= criteria.tasksCompleted) {
+          if (criteria?.tasksCompleted && completedTasks[0]?.count && completedTasks[0].count >= criteria.tasksCompleted) {
             // Unlock the achievement
             await db.insert(userAchievements)
               .values({
                 userId: req.user.id,
                 achievementId: achievement.id,
                 unlockedAt: new Date(),
-                progress: completedTasksCount,
+                progress: {
+                  completedTasks: completedTasks[0].count,
+                },
               });
 
             // Create notification for achievement unlock
