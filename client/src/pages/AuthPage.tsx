@@ -18,7 +18,7 @@ export default function AuthPage() {
     companyName: "",
     address: "",
   });
-  const { login, register, user } = useUser();
+  const { login, user } = useUser();
   const { toast } = useToast();
 
   // Redirect if already authenticated
@@ -54,8 +54,16 @@ export default function AuthPage() {
     }
   };
 
+  const handleAdminLogin = () => {
+    login({ 
+      username: "admin", 
+      password: "admin123" 
+    });
+    setLocation("/");
+  };
+
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
+    <div className="min-h-screen bg-background flex items-center justify-center p-4 relative">
       <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle>{isLogin ? "Login" : "Register"}</CardTitle>
@@ -159,6 +167,16 @@ export default function AuthPage() {
           </Button>
         </CardContent>
       </Card>
+
+      {/* Admin Login Button */}
+      <Button
+        variant="ghost"
+        size="sm"
+        className="absolute bottom-4 left-4 text-muted-foreground hover:text-primary"
+        onClick={handleAdminLogin}
+      >
+        Admin Login
+      </Button>
     </div>
   );
 }
