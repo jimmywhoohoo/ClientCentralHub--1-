@@ -137,6 +137,33 @@ export function TaskDashboard() {
     queryKey: ['/api/admin/users'],
   });
 
+  const updateTaskMutation = useMutation({
+    mutationFn: async (task: Task) => {
+      setSyncStatus("syncing");
+
+      if (ws?.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+          type: 'task_update',
+          taskId: task.id,
+          changes: {
+            status: task.status === 'completed' ? 'pending' : 'completed',
+            completedAt: task.status === 'completed' ? new Date().toISOString() : null,
+            updatedAt: new Date().toISOString()
+          },
+          userId: user?.id
+        }));
+      }
+    },
+    onError: (error: Error) => {
+      setSyncStatus("error");
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   const createTaskMutation = useMutation({
     mutationFn: async (task: NewTask) => {
       setSyncStatus("syncing");
@@ -184,6 +211,13 @@ export function TaskDashboard() {
       });
     },
   });
+
+  const handleCompleteTask = (task: Task) => {
+    updateTaskMutation.mutate({
+      ...task,
+      status: task.status === 'completed' ? 'pending' : 'completed'
+    });
+  };
 
   if (isLoading) {
     return (
@@ -291,6 +325,18 @@ export function TaskDashboard() {
                   </p>
                   <div className="flex items-center justify-between text-xs text-muted-foreground">
                     <span>Priority: {task.priority}</span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleCompleteTask(task)}
+                      disabled={updateTaskMutation.isPending}
+                    >
+                      {updateTaskMutation.isPending ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        task.status === 'completed' ? 'Mark as Pending' : 'Complete'
+                      )}
+                    </Button>
                   </div>
                 </div>
               ))}
@@ -320,6 +366,18 @@ export function TaskDashboard() {
                   </p>
                   <div className="flex items-center justify-between text-xs text-muted-foreground">
                     <span>Priority: {task.priority}</span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleCompleteTask(task)}
+                      disabled={updateTaskMutation.isPending}
+                    >
+                      {updateTaskMutation.isPending ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        'Mark as Pending'
+                      )}
+                    </Button>
                   </div>
                 </div>
               ))}
