@@ -205,6 +205,12 @@ export default function AdminPage() {
   });
 
 
+  // Add click handler for file deletion
+  const handleDeleteFile = (file: FileWithUploader, e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent row click event
+    setFileToDelete(file);
+  };
+
   // Redirect if not admin
   if (user?.role !== "admin") {
     setLocation("/");
@@ -518,10 +524,7 @@ export default function AdminPage() {
                                 variant="ghost"
                                 size="sm"
                                 className="text-red-600 hover:text-red-800"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setFileToDelete(file);
-                                }}
+                                onClick={(e) => handleDeleteFile(file, e)}
                               >
                                 <Trash2 className="h-4 w-4" />
                               </Button>
@@ -848,7 +851,7 @@ export default function AdminPage() {
           </div>
         </DialogContent>
       </Dialog>
-      <AlertDialog open={!!fileToDelete} onOpenChange={() => setFileToDelete(null)}>
+      <AlertDialog open={!!fileToDelete} onOpenChange={(open) => !open && setFileToDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete File</AlertDialogTitle>
@@ -865,6 +868,7 @@ export default function AdminPage() {
                   deleteFileMutation.mutate(fileToDelete.id);
                 }
               }}
+              disabled={deleteFileMutation.isPending}
             >
               {deleteFileMutation.isPending ? (
                 <>
