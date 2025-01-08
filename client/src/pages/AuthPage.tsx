@@ -5,9 +5,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
+import { useLocation } from "wouter";
 
 export default function AuthPage() {
   const [isLogin, setIsLogin] = useState(true);
+  const [, setLocation] = useLocation();
   const [formData, setFormData] = useState({
     username: "",
     password: "",
@@ -16,8 +18,14 @@ export default function AuthPage() {
     companyName: "",
     address: "",
   });
-  const { login, register } = useUser();
+  const { login, register, user } = useUser();
   const { toast } = useToast();
+
+  // Redirect if already authenticated
+  if (user) {
+    setLocation("/");
+    return null;
+  }
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -32,8 +40,10 @@ export default function AuthPage() {
           username: formData.username, 
           password: formData.password 
         });
+        setLocation("/");
       } else {
         await register(formData);
+        setLocation("/");
       }
     } catch (error: any) {
       toast({
