@@ -2,6 +2,7 @@ import { Sidebar } from "../components/Dashboard/Sidebar";
 import { DocumentList } from "../components/Dashboard/DocumentList";
 import { Questionnaire } from "../components/Dashboard/Questionnaire";
 import { DocumentAnalytics } from "../components/Dashboard/DocumentAnalytics";
+import { TeamLeaderboard } from "../components/Dashboard/TeamLeaderboard";
 import { useQuery } from "@tanstack/react-query";
 import type { Document } from "@db/schema";
 import { Card, CardContent } from "@/components/ui/card";
@@ -92,6 +93,11 @@ export default function DashboardPage() {
               </Card>
             ))}
           </div>
+
+          {/* Team Leaderboard Section */}
+          <section className="touch-manipulation">
+            <TeamLeaderboard />
+          </section>
 
           {/* Tasks Section */}
           <section className="touch-manipulation">
