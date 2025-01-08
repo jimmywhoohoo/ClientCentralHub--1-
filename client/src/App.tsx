@@ -17,7 +17,7 @@ function ProtectedRoute({ component: Component }: { component: React.ComponentTy
     if (!isLoading && !user) {
       navigate("/auth");
     }
-  }, [user, isLoading, navigate]);
+  }, [user, isLoading]);
 
   if (isLoading) {
     return (
@@ -36,6 +36,13 @@ function ProtectedRoute({ component: Component }: { component: React.ComponentTy
 
 function App() {
   const { user, isLoading } = useUser();
+  const [, navigate] = useLocation();
+
+  useEffect(() => {
+    if (!isLoading && user && window.location.pathname === "/auth") {
+      navigate("/");
+    }
+  }, [user, isLoading]);
 
   if (isLoading) {
     return (
@@ -48,10 +55,7 @@ function App() {
   return (
     <Switch>
       <Route path="/auth">
-        {user ? (() => {
-          window.location.href = "/";
-          return null;
-        })() : <AuthPage />}
+        {user ? null : <AuthPage />}
       </Route>
       <Route path="/settings">
         <ProtectedRoute component={SettingsPage} />
