@@ -1,8 +1,8 @@
 import { WebSocket, WebSocketServer } from 'ws';
 import type { Server } from 'http';
 import { db } from '@db';
-import { eq } from 'drizzle-orm';
-import { tasks, taskActivities } from '@db/schema';
+import { eq, and, sql } from 'drizzle-orm';
+import { tasks, taskActivities, users, documentComments } from '@db/schema';
 import { randomUUID } from 'crypto';
 
 interface Client {
@@ -23,32 +23,107 @@ interface TaskUpdate {
   userId: number;
 }
 
-type Message = TaskUpdate;
-
-function validateTaskUpdate(currentStatus: string, newStatus: string): { isValid: boolean; message?: string } {
-  const validTransitions: Record<string, string[]> = {
-    'pending': ['in_progress', 'completed', 'cancelled'],
-    'in_progress': ['completed', 'cancelled', 'pending'],
-    'completed': ['pending'],
-    'cancelled': ['pending']
-  };
-
-  if (!validTransitions[currentStatus]) {
-    return { isValid: false, message: `Invalid current status: ${currentStatus}` };
-  }
-
-  if (!validTransitions[currentStatus].includes(newStatus)) {
-    return { 
-      isValid: false, 
-      message: `Cannot change task status from '${currentStatus}' to '${newStatus}'. Valid transitions are: ${validTransitions[currentStatus].join(', ')}`
+interface TeamPerformanceUpdate {
+  type: 'team_performance';
+  members: Array<{
+    id: number;
+    username: string;
+    fullName: string;
+    role: string;
+    metrics: {
+      tasksCompleted: number;
+      onTimeCompletion: number;
+      documentComments: number;
+      collaborationScore: number;
+      totalScore: number;
     };
-  }
+  }>;
+}
 
-  return { isValid: true };
+type Message = TaskUpdate | { type: 'subscribe_team_performance' };
+
+async function calculateTeamPerformance() {
+  const teamMembers = await db.query.users.findMany({
+    where: eq(users.role, 'team_member'),
+  });
+
+  const performanceMetrics = await Promise.all(
+    teamMembers.map(async (member) => {
+      // Calculate tasks completed
+      const [tasksCompleted] = await db
+        .select({ count: sql<number>`count(*)::integer` })
+        .from(tasks)
+        .where(
+          and(
+            eq(tasks.assignedTo, member.id),
+            eq(tasks.status, 'completed')
+          )
+        );
+
+      // Calculate on-time completion rate
+      const [totalTasks] = await db
+        .select({ count: sql<number>`count(*)::integer` })
+        .from(tasks)
+        .where(eq(tasks.assignedTo, member.id));
+
+      const [onTimeTasks] = await db
+        .select({ count: sql<number>`count(*)::integer` })
+        .from(tasks)
+        .where(
+          and(
+            eq(tasks.assignedTo, member.id),
+            eq(tasks.status, 'completed'),
+            sql`tasks.completed_at <= tasks.deadline`
+          )
+        );
+
+      const onTimeCompletionRate = totalTasks.count > 0
+        ? Math.round((onTimeTasks.count / totalTasks.count) * 100)
+        : 100;
+
+      // Calculate document comments
+      const [comments] = await db
+        .select({ count: sql<number>`count(*)::integer` })
+        .from(documentComments)
+        .where(eq(documentComments.userId, member.id));
+
+      // Calculate collaboration score based on task activities
+      const [activities] = await db
+        .select({ count: sql<number>`count(*)::integer` })
+        .from(taskActivities)
+        .where(eq(taskActivities.userId, member.id));
+
+      const collaborationScore = Math.min(100, activities.count);
+
+      // Calculate total score (weighted average)
+      const totalScore = Math.round(
+        (tasksCompleted.count * 40 +
+          onTimeCompletionRate * 30 +
+          Math.min(comments.count * 10, 100) * 15 +
+          collaborationScore * 15) / 100
+      );
+
+      return {
+        id: member.id,
+        username: member.username,
+        fullName: member.fullName,
+        role: member.role,
+        metrics: {
+          tasksCompleted: tasksCompleted.count,
+          onTimeCompletion: onTimeCompletionRate,
+          documentComments: comments.count,
+          collaborationScore,
+          totalScore,
+        },
+      };
+    })
+  );
+
+  return performanceMetrics;
 }
 
 export function setupWebSocket(server: Server) {
-  const wss = new WebSocketServer({ 
+  const wss = new WebSocketServer({
     server,
     verifyClient: (info: any) => {
       return !info.req.headers['sec-websocket-protocol']?.includes('vite-hmr');
@@ -56,6 +131,26 @@ export function setupWebSocket(server: Server) {
   });
 
   const clients = new Map<string, Client>();
+  const performanceSubscribers = new Set<string>();
+
+  const broadcastTeamPerformance = async () => {
+    const performanceMetrics = await calculateTeamPerformance();
+    const message: TeamPerformanceUpdate = {
+      type: 'team_performance',
+      members: performanceMetrics,
+    };
+
+    performanceSubscribers.forEach(clientId => {
+      const client = clients.get(clientId);
+      if (client?.ws.readyState === WebSocket.OPEN) {
+        try {
+          client.ws.send(JSON.stringify(message));
+        } catch (err) {
+          console.error('Failed to send team performance update:', err);
+        }
+      }
+    });
+  };
 
   const broadcastToClients = (message: any, excludeClientId?: string) => {
     clients.forEach((client, clientId) => {
@@ -92,6 +187,13 @@ export function setupWebSocket(server: Server) {
       const client = clients.get(clientId);
       if (!client) return;
 
+      if (parsedMessage.type === 'subscribe_team_performance') {
+        performanceSubscribers.add(clientId);
+        // Send initial performance data
+        broadcastTeamPerformance();
+      }
+
+      // Handle task updates and recalculate team performance
       if (parsedMessage.type === 'task_update' && parsedMessage.taskId && parsedMessage.changes) {
         try {
           // Fetch current task status
@@ -186,6 +288,7 @@ export function setupWebSocket(server: Server) {
     });
 
     ws.on('close', () => {
+      performanceSubscribers.delete(clientId);
       clients.delete(clientId);
     });
 
@@ -208,5 +311,34 @@ export function setupWebSocket(server: Server) {
     });
   });
 
+  // Periodically update team performance (every 30 seconds)
+  setInterval(() => {
+    if (performanceSubscribers.size > 0) {
+      broadcastTeamPerformance();
+    }
+  }, 30000);
+
   return wss;
+}
+
+function validateTaskUpdate(currentStatus: string, newStatus: string): { isValid: boolean; message?: string } {
+  const validTransitions: Record<string, string[]> = {
+    'pending': ['in_progress', 'completed', 'cancelled'],
+    'in_progress': ['completed', 'cancelled', 'pending'],
+    'completed': ['pending'],
+    'cancelled': ['pending']
+  };
+
+  if (!validTransitions[currentStatus]) {
+    return { isValid: false, message: `Invalid current status: ${currentStatus}` };
+  }
+
+  if (!validTransitions[currentStatus].includes(newStatus)) {
+    return { 
+      isValid: false, 
+      message: `Cannot change task status from '${currentStatus}' to '${newStatus}'. Valid transitions are: ${validTransitions[currentStatus].join(', ')}`
+    };
+  }
+
+  return { isValid: true };
 }
