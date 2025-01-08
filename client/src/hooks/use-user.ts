@@ -12,7 +12,7 @@ type RequestResult = {
 };
 
 async function handleRequest(
-  url: string,
+  url: string, 
   method: string,
   body?: Partial<NewUser>
 ): Promise<RequestResult> {
