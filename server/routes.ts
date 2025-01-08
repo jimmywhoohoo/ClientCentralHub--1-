@@ -8,6 +8,8 @@ import { eq, desc, or, asc } from "drizzle-orm";
 import { errorHandler, apiErrorLogger } from "./error-handler";
 import { createTaskSchema, updateTaskSchema } from "@db/schema";
 import { sql } from "drizzle-orm";
+import { generateThumbnail } from './services/thumbnail';
+import path from 'path';
 
 export function registerRoutes(app: Express): Server {
   setupAuth(app);
@@ -114,6 +116,60 @@ export function registerRoutes(app: Express): Server {
     } catch (error) {
       console.error("Error fetching files:", error);
       res.status(500).json({ error: "Failed to fetch files" });
+    }
+  });
+
+  // Serve thumbnails
+  app.get("/api/files/thumbnail/:id", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ error: "Not authenticated" });
+    }
+
+    try {
+      const { id } = req.params;
+      const [file] = await db.select()
+        .from(files)
+        .where(eq(files.id, parseInt(id)))
+        .limit(1);
+
+      if (!file || !file.thumbnailPath) {
+        return res.status(404).json({ error: "Thumbnail not found" });
+      }
+
+      res.sendFile(file.thumbnailPath);
+    } catch (error) {
+      console.error("Error serving thumbnail:", error);
+      res.status(500).json({ error: "Failed to serve thumbnail" });
+    }
+  });
+
+
+  // Update file upload handler to generate thumbnails
+  app.post("/api/files/upload", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ error: "Not authenticated" });
+    }
+
+    try {
+      // Handle file upload logic here...  This is a placeholder and needs actual file upload handling.
+      const filePath = ''; // Get the uploaded file path.  Needs implementation for actual file upload.
+      const thumbnailPath = await generateThumbnail(filePath); // Needs implementation for thumbnail generation.
+
+      const [file] = await db.insert(files)
+        .values({
+          fileName: req.file.originalname,
+          fileType: req.file.mimetype,
+          fileSize: req.file.size,
+          path: filePath,
+          thumbnailPath,
+          uploadedBy: req.user.id,
+        })
+        .returning();
+
+      res.json(file);
+    } catch (error) {
+      console.error("Error uploading file:", error);
+      res.status(500).json({ error: "Failed to upload file" });
     }
   });
 

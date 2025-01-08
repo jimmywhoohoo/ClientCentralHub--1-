@@ -22,6 +22,7 @@ export const files = pgTable("files", {
   fileType: text("file_type").notNull(),
   fileSize: integer("file_size").notNull(),
   path: text("path").notNull(),
+  thumbnailPath: text("thumbnail_path"),
   uploadedBy: integer("uploaded_by").references(() => users.id),
   uploadedAt: timestamp("uploaded_at").defaultNow().notNull(),
   description: text("description"),

@@ -23,7 +23,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
-import { Search, Loader2, AlertCircle, Shield } from "lucide-react";
+import { Search, Loader2, AlertCircle, Shield, Image } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
   Dialog,
@@ -32,6 +32,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { AspectRatio } from "@/components/ui/aspect-ratio";
 
 type PaginatedResponse = {
   users: User[];
@@ -124,7 +125,6 @@ export default function AdminPage() {
     queryKey: ["/api/admin/files", fileListPage],
     enabled: user?.role === "admin",
   });
-
 
   return (
     <div className="flex min-h-screen bg-background">
@@ -255,7 +255,22 @@ export default function AdminPage() {
                         {fileData?.files.map((file) => (
                           <TableRow key={file.id} className="hover:bg-muted/50">
                             <TableCell className="font-medium">
-                              {file.fileName}
+                              <div className="flex items-center gap-2">
+                                {file.thumbnailPath ? (
+                                  <AspectRatio ratio={1} className="w-10 h-10 rounded-md overflow-hidden">
+                                    <img
+                                      src={`/api/files/thumbnail/${file.id}`}
+                                      alt={file.fileName}
+                                      className="object-cover w-full h-full"
+                                    />
+                                  </AspectRatio>
+                                ) : (
+                                  <div className="w-10 h-10 rounded-md bg-muted flex items-center justify-center">
+                                    <Image className="w-5 h-5 text-muted-foreground" />
+                                  </div>
+                                )}
+                                <span>{file.fileName}</span>
+                              </div>
                             </TableCell>
                             <TableCell>{file.fileType}</TableCell>
                             <TableCell>
