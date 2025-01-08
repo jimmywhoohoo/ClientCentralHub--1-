@@ -100,6 +100,11 @@ export default function AdminPage() {
     enabled: !!selectedUserFiles && user?.role === "admin",
   });
 
+  const { data: fileData, isLoading: loadingFiles } = useQuery<PaginatedFileResponse>({
+    queryKey: ["/api/admin/files", fileListPage],
+    enabled: user?.role === "admin",
+  });
+
   const updateUserMutation = useMutation({
     mutationFn: async ({ id, role, active }: { id: number; role: string; active: boolean }) => {
       const response = await fetch(`/api/admin/users/${id}`, {
@@ -132,22 +137,19 @@ export default function AdminPage() {
     },
   });
 
+  // Redirect if not admin
   if (user?.role !== "admin") {
     setLocation("/");
     return null;
   }
 
-  const filteredUsers = data?.users.filter(user =>
+  // Safe filtering with null checks
+  const filteredUsers = (data?.users || []).filter(user =>
     user.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
     user.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
     user.fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
     user.companyName.toLowerCase().includes(searchQuery.toLowerCase())
   );
-
-  const { data: fileData, isLoading: loadingFiles } = useQuery<PaginatedFileResponse>({
-    queryKey: ["/api/admin/files", fileListPage],
-    enabled: user?.role === "admin",
-  });
 
   return (
     <div className="flex min-h-screen bg-background">
@@ -197,7 +199,7 @@ export default function AdminPage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {filteredUsers?.map((user) => (
+                        {filteredUsers.map((user) => (
                           <TableRow key={user.id} className="hover:bg-muted/50">
                             <TableCell className="font-medium">
                               <Button
@@ -286,7 +288,7 @@ export default function AdminPage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {fileData?.files.map((file) => (
+                        {(fileData?.files || []).map((file) => (
                           <TableRow key={file.id} className="hover:bg-muted/50">
                             <TableCell className="font-medium">
                               <div className="flex items-center gap-2">
@@ -432,7 +434,7 @@ export default function AdminPage() {
                   <Skeleton key={i} className="h-12 w-full" />
                 ))}
               </div>
-            ) : userFiles?.files.length === 0 ? (
+            ) : !userFiles?.files?.length ? (
               <div className="text-center py-8 text-muted-foreground">
                 No files uploaded yet
               </div>
@@ -449,7 +451,7 @@ export default function AdminPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {userFiles?.files.map((file) => (
+                    {userFiles.files.map((file) => (
                       <TableRow key={file.id}>
                         <TableCell>
                           <div className="flex items-center gap-2">
@@ -488,7 +490,7 @@ export default function AdminPage() {
               </div>
             )}
 
-            {userFiles && userFiles.pagination.pages > 1 && (
+            {userFiles?.pagination.pages > 1 && (
               <div className="flex justify-center gap-2 mt-4">
                 {[...Array(userFiles.pagination.pages)].map((_, i) => (
                   <Button
