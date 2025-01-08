@@ -1,6 +1,7 @@
 import { pgTable, text, serial, integer, boolean, timestamp, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema, createSelectSchema } from "drizzle-zod";
 import { relations } from "drizzle-orm";
+import { z } from "zod";
 
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
@@ -62,11 +63,17 @@ export const responseRelations = relations(responses, ({ one }) => ({
   }),
 }));
 
+export const loginSchema = z.object({
+  username: z.string().min(1, "Username is required"),
+  password: z.string().min(1, "Password is required"),
+});
+
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
 export type Document = typeof documents.$inferSelect;
 export type Questionnaire = typeof questionnaires.$inferSelect;
 export type Response = typeof responses.$inferSelect;
+export type LoginInput = z.infer<typeof loginSchema>;
 
 export const insertUserSchema = createInsertSchema(users);
 export const selectUserSchema = createSelectSchema(users);
