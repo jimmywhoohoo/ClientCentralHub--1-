@@ -18,12 +18,12 @@ import {
 } from "@/components/ui/select";
 import { useUser } from "../hooks/use-user";
 import { useLocation } from "wouter";
-import type { User, Document, File } from "@db/schema";
+import type { User, File } from "@db/schema";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
-import { Search, Loader2, AlertCircle, Shield, Image } from "lucide-react";
+import { Search, Loader2, Shield, Image, Files } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
   Dialog,
@@ -33,6 +33,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 type PaginatedResponse = {
   users: User[];
@@ -54,12 +55,24 @@ type PaginatedFileResponse = {
   };
 };
 
+type UserFiles = {
+  files: File[];
+  pagination: {
+    total: number;
+    page: number;
+    limit: number;
+    pages: number;
+  };
+};
+
 export default function AdminPage() {
   const { user } = useUser();
   const [, setLocation] = useLocation();
   const [searchQuery, setSearchQuery] = useState("");
   const [page, setPage] = useState(1);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [selectedUserFiles, setSelectedUserFiles] = useState<User | null>(null);
+  const [userFilesPage, setUserFilesPage] = useState(1);
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [fileListPage, setFileListPage] = useState(1);
@@ -67,6 +80,11 @@ export default function AdminPage() {
   const { data, isLoading: loadingUsers } = useQuery<PaginatedResponse>({
     queryKey: ["/api/admin/users", page],
     enabled: user?.role === "admin",
+  });
+
+  const { data: userFiles, isLoading: loadingUserFiles } = useQuery<UserFiles>({
+    queryKey: ["/api/admin/users", selectedUserFiles?.id, "files", userFilesPage],
+    enabled: !!selectedUserFiles && user?.role === "admin",
   });
 
   const updateUserMutation = useMutation({
@@ -109,17 +127,9 @@ export default function AdminPage() {
   const filteredUsers = data?.users.filter(user =>
     user.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
     user.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    user.fullName.toLowerCase().includes(searchQuery.toLowerCase())
+    user.fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    user.companyName.toLowerCase().includes(searchQuery.toLowerCase())
   );
-
-  const { data: documents, isLoading: loadingDocs } = useQuery<Document[]>({
-    queryKey: ["/api/documents"],
-    enabled: user?.role === "admin",
-  });
-
-  const recentDocuments = documents?.sort((a, b) =>
-    new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-  ).slice(0, 5);
 
   const { data: fileData, isLoading: loadingFiles } = useQuery<PaginatedFileResponse>({
     queryKey: ["/api/admin/files", fileListPage],
@@ -166,6 +176,7 @@ export default function AdminPage() {
                         <TableRow>
                           <TableHead>Username</TableHead>
                           <TableHead>Full Name</TableHead>
+                          <TableHead>Company</TableHead>
                           <TableHead className="hidden md:table-cell">Email</TableHead>
                           <TableHead>Role</TableHead>
                           <TableHead>Status</TableHead>
@@ -175,8 +186,17 @@ export default function AdminPage() {
                       <TableBody>
                         {filteredUsers?.map((user) => (
                           <TableRow key={user.id} className="hover:bg-muted/50">
-                            <TableCell className="font-medium">{user.username}</TableCell>
+                            <TableCell className="font-medium">
+                              <Button
+                                variant="link"
+                                className="p-0 h-auto font-medium"
+                                onClick={() => setSelectedUserFiles(user)}
+                              >
+                                {user.username}
+                              </Button>
+                            </TableCell>
                             <TableCell>{user.fullName}</TableCell>
+                            <TableCell>{user.companyName}</TableCell>
                             <TableCell className="hidden md:table-cell">{user.email}</TableCell>
                             <TableCell>
                               <span className={`px-2 py-1 rounded-full text-xs ${
@@ -228,7 +248,7 @@ export default function AdminPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Uploaded Files</CardTitle>
+              <CardTitle>All Uploaded Files</CardTitle>
             </CardHeader>
             <CardContent>
               {loadingFiles ? (
@@ -247,6 +267,7 @@ export default function AdminPage() {
                           <TableHead>Type</TableHead>
                           <TableHead>Size</TableHead>
                           <TableHead>Uploaded By</TableHead>
+                          <TableHead>Company</TableHead>
                           <TableHead>Upload Date</TableHead>
                           <TableHead>Status</TableHead>
                         </TableRow>
@@ -273,10 +294,9 @@ export default function AdminPage() {
                               </div>
                             </TableCell>
                             <TableCell>{file.fileType}</TableCell>
-                            <TableCell>
-                              {formatFileSize(file.fileSize)}
-                            </TableCell>
+                            <TableCell>{formatFileSize(file.fileSize)}</TableCell>
                             <TableCell>{file.uploader.username}</TableCell>
+                            <TableCell>{file.uploader.companyName}</TableCell>
                             <TableCell>
                               {new Date(file.uploadedAt).toLocaleDateString()}
                             </TableCell>
@@ -311,51 +331,10 @@ export default function AdminPage() {
               )}
             </CardContent>
           </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Recent Activity</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {loadingDocs ? (
-                <div className="space-y-2">
-                  {[...Array(5)].map((_, i) => (
-                    <Skeleton key={i} className="h-12 w-full" />
-                  ))}
-                </div>
-              ) : (
-                <div className="rounded-md border">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Document</TableHead>
-                        <TableHead>Type</TableHead>
-                        <TableHead className="hidden md:table-cell">Created</TableHead>
-                        <TableHead className="hidden md:table-cell">Views</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {recentDocuments?.map((doc) => (
-                        <TableRow key={doc.id} className="hover:bg-muted/50">
-                          <TableCell className="font-medium">{doc.name}</TableCell>
-                          <TableCell>{doc.type}</TableCell>
-                          <TableCell className="hidden md:table-cell">
-                            {new Date(doc.createdAt).toLocaleDateString()}
-                          </TableCell>
-                          <TableCell className="hidden md:table-cell">
-                            {doc.accessCount}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              )}
-            </CardContent>
-          </Card>
         </div>
       </main>
 
+      {/* Edit User Dialog */}
       <Dialog open={!!selectedUser} onOpenChange={() => setSelectedUser(null)}>
         <DialogContent>
           <DialogHeader>
@@ -414,6 +393,103 @@ export default function AdminPage() {
               </Select>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* User Files Dialog */}
+      <Dialog open={!!selectedUserFiles} onOpenChange={() => {
+        setSelectedUserFiles(null);
+        setUserFilesPage(1);
+      }}>
+        <DialogContent className="max-w-4xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Files className="h-5 w-5" />
+              Files uploaded by {selectedUserFiles?.fullName}
+            </DialogTitle>
+            <DialogDescription>
+              Company: {selectedUserFiles?.companyName}
+            </DialogDescription>
+          </DialogHeader>
+
+          <ScrollArea className="h-[500px]">
+            {loadingUserFiles ? (
+              <div className="space-y-2">
+                {[...Array(5)].map((_, i) => (
+                  <Skeleton key={i} className="h-12 w-full" />
+                ))}
+              </div>
+            ) : userFiles?.files.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                No files uploaded yet
+              </div>
+            ) : (
+              <div className="rounded-md border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>File Name</TableHead>
+                      <TableHead>Type</TableHead>
+                      <TableHead>Size</TableHead>
+                      <TableHead>Upload Date</TableHead>
+                      <TableHead>Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {userFiles?.files.map((file) => (
+                      <TableRow key={file.id}>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            {file.thumbnailPath ? (
+                              <AspectRatio ratio={1} className="w-10 h-10 rounded-md overflow-hidden">
+                                <img
+                                  src={`/api/files/thumbnail/${file.id}`}
+                                  alt={file.fileName}
+                                  className="object-cover w-full h-full"
+                                />
+                              </AspectRatio>
+                            ) : (
+                              <div className="w-10 h-10 rounded-md bg-muted flex items-center justify-center">
+                                <Image className="w-5 h-5 text-muted-foreground" />
+                              </div>
+                            )}
+                            {file.fileName}
+                          </div>
+                        </TableCell>
+                        <TableCell>{file.fileType}</TableCell>
+                        <TableCell>{formatFileSize(file.fileSize)}</TableCell>
+                        <TableCell>
+                          {new Date(file.uploadedAt).toLocaleDateString()}
+                        </TableCell>
+                        <TableCell>
+                          <span className={`px-2 py-1 rounded-full text-xs ${
+                            file.isArchived ? "bg-yellow-100 text-yellow-800" : "bg-green-100 text-green-800"
+                          }`}>
+                            {file.isArchived ? "Archived" : "Active"}
+                          </span>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+
+            {userFiles && userFiles.pagination.pages > 1 && (
+              <div className="flex justify-center gap-2 mt-4">
+                {[...Array(userFiles.pagination.pages)].map((_, i) => (
+                  <Button
+                    key={i}
+                    variant={userFilesPage === i + 1 ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setUserFilesPage(i + 1)}
+                  >
+                    {i + 1}
+                  </Button>
+                ))}
+              </div>
+            )}
+          </ScrollArea>
         </DialogContent>
       </Dialog>
     </div>

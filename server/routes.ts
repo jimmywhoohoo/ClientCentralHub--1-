@@ -73,6 +73,44 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Get files for a specific user
+  app.get("/api/admin/users/:userId/files", async (req, res) => {
+    if (!req.isAuthenticated() || req.user.role !== "admin") {
+      return res.status(403).json({ error: "Not authorized" });
+    }
+
+    try {
+      const { userId } = req.params;
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = parseInt(req.query.limit as string) || 10;
+      const offset = (page - 1) * limit;
+
+      const userFiles = await db.query.files.findMany({
+        where: eq(files.uploadedBy, parseInt(userId)),
+        orderBy: [desc(files.uploadedAt)],
+        limit,
+        offset,
+      });
+
+      const totalFiles = await db.select({ count: sql<number>`count(*)` })
+        .from(files)
+        .where(eq(files.uploadedBy, parseInt(userId)));
+
+      res.json({
+        files: userFiles,
+        pagination: {
+          total: totalFiles[0].count,
+          page,
+          limit,
+          pages: Math.ceil(totalFiles[0].count / limit),
+        },
+      });
+    } catch (error) {
+      console.error("Error fetching user files:", error);
+      res.status(500).json({ error: "Failed to fetch user files" });
+    }
+  });
+
   app.put("/api/admin/users/:id", async (req, res) => {
     if (!req.isAuthenticated() || req.user.role !== "admin") {
       return res.status(403).json({ error: "Not authorized" });
