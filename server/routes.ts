@@ -2,8 +2,8 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { db } from "@db";
-import { documents, questionnaires, responses } from "@db/schema";
-import { and, eq } from "drizzle-orm";
+import { documents, documentInteractions, users } from "@db/schema";
+import { and, eq, desc, sql } from "drizzle-orm";
 
 export function registerRoutes(app: Express): Server {
   setupAuth(app);
@@ -22,6 +22,49 @@ export function registerRoutes(app: Express): Server {
     });
 
     res.json(userDocs);
+  });
+
+  // New route for document recommendations
+  app.get("/api/documents/recommendations", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).send("Not authenticated");
+    }
+
+    const userId = req.user.id;
+
+    // Get user's recent interactions
+    const recentInteractions = await db.query.documentInteractions.findMany({
+      where: eq(documentInteractions.userId, userId),
+      with: {
+        document: true,
+      },
+      orderBy: desc(documentInteractions.createdAt),
+      limit: 5,
+    });
+
+    // Extract categories and industries from user's recent interactions
+    const userPreferences = recentInteractions.reduce((acc, interaction) => {
+      if (interaction.document) {
+        acc.categories.add(interaction.document.category);
+        if (interaction.document.industry) {
+          acc.industries.add(interaction.document.industry);
+        }
+      }
+      return acc;
+    }, { categories: new Set<string>(), industries: new Set<string>() });
+
+    // Find similar documents based on user preferences
+    const recommendations = await db.query.documents.findMany({
+      where: and(
+        sql`${documents.category} = ANY(${Array.from(userPreferences.categories)})`,
+        sql`${documents.industry} = ANY(${Array.from(userPreferences.industries)})`,
+        sql`${documents.userId} != ${userId}`
+      ),
+      orderBy: desc(documents.accessCount),
+      limit: 5,
+    });
+
+    res.json(recommendations);
   });
 
   // Questionnaires
@@ -53,6 +96,36 @@ export function registerRoutes(app: Express): Server {
 
     res.json(response);
   });
+
+  // Add interaction tracking
+  app.post("/api/documents/:id/interact", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).send("Not authenticated");
+    }
+
+    const { id } = req.params;
+    const { type } = req.body;
+
+    const [interaction] = await db
+      .insert(documentInteractions)
+      .values({
+        userId: req.user.id,
+        documentId: parseInt(id),
+        interactionType: type,
+      })
+      .returning();
+
+    // Update document access count
+    await db
+      .update(documents)
+      .set({
+        accessCount: sql`${documents.accessCount} + 1`,
+      })
+      .where(eq(documents.id, parseInt(id)));
+
+    res.json(interaction);
+  });
+
 
   // Admin routes
   app.get("/api/admin/users", async (req, res) => {

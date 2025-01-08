@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import type { Document, Questionnaire as QuestionnaireType } from "@db/schema";
 import { Card, CardContent } from "@/components/ui/card";
 import { Clock, FileText, Users, TrendingUp } from "lucide-react";
+import { DocumentRecommendations } from "../components/Dashboard/DocumentRecommendations";
 
 export default function DashboardPage() {
   const { data: documents } = useQuery<Document[]>({
@@ -70,6 +71,11 @@ export default function DashboardPage() {
               </Card>
             ))}
           </div>
+
+          {/* Add Recommendations Section */}
+          <section>
+            <DocumentRecommendations />
+          </section>
 
           <div className="grid md:grid-cols-2 gap-8">
             {/* Upcoming Deadlines */}
