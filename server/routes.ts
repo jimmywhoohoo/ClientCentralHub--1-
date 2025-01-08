@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { setupWebSocket } from "./websocket";
 import { db } from "@db";
-import { tasks, users, files, companyProfiles, notificationPreferences, notifications } from "@db/schema";
+import { tasks, users, files, companyProfiles, notificationPreferences, notifications, taskActivities } from "@db/schema";
 import { eq, desc, or, asc, and } from "drizzle-orm";
 import { errorHandler, apiErrorLogger } from "./error-handler";
 import { createTaskSchema, updateTaskSchema, updateCompanyProfileSchema, updateNotificationPreferencesSchema } from "@db/schema";
@@ -631,6 +631,49 @@ export function registerRoutes(app: Express): Server {
     } catch (error) {
       console.error("Error fetching task stats:", error);
       res.status(500).json({ error: "Failed to fetch task stats" });
+    }
+  });
+
+  // Task update route - fix JSON response handling
+  app.put("/api/tasks/:id", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ error: "Not authenticated" });
+    }
+
+    try {
+      const result = updateTaskSchema.safeParse(req.body);
+      if (!result.success) {
+        return res.status(400).json({
+          error: "Invalid input: " + result.error.issues.map(i => i.message).join(", ")
+        });
+      }
+
+      const [task] = await db.update(tasks)
+        .set({
+          ...result.data,
+          updatedAt: new Date(),
+          ...(result.data.status === 'completed' ? { completedAt: new Date() } : {}),
+        })
+        .where(eq(tasks.id, parseInt(req.params.id)))
+        .returning();
+
+      if (!task) {
+        return res.status(404).json({ error: "Task not found" });
+      }
+
+      // Add task activity
+      if (result.data.status) {
+        await db.insert(taskActivities).values({
+          taskId: task.id,
+          userId: req.user.id,
+          action: `changed status to ${result.data.status}`,
+        });
+      }
+
+      res.json(task);
+    } catch (error) {
+      console.error("Error updating task:", error);
+      res.status(500).json({ error: "Failed to update task" });
     }
   });
 
