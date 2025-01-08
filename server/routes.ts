@@ -10,6 +10,27 @@ import { createTaskSchema, updateTaskSchema } from "@db/schema";
 import { sql } from "drizzle-orm";
 import { generateThumbnail } from './services/thumbnail';
 import path from 'path';
+import multer from 'multer';
+import fs from 'fs/promises';
+
+// Configure multer for file upload
+const storage = multer.diskStorage({
+  destination: async function (req, file, cb) {
+    const uploadDir = path.join(process.cwd(), 'uploads');
+    try {
+      await fs.mkdir(uploadDir, { recursive: true });
+      cb(null, uploadDir);
+    } catch (error) {
+      cb(error as Error, uploadDir);
+    }
+  },
+  filename: function (req, file, cb) {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, uniqueSuffix + '-' + file.originalname);
+  }
+});
+
+const upload = multer({ storage: storage });
 
 export function registerRoutes(app: Express): Server {
   setupAuth(app);
@@ -143,24 +164,25 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-
-  // Update file upload handler to generate thumbnails
-  app.post("/api/files/upload", async (req, res) => {
+  // Handle file upload with thumbnail generation
+  app.post("/api/files/upload", upload.single('file'), async (req, res) => {
     if (!req.isAuthenticated()) {
       return res.status(401).json({ error: "Not authenticated" });
     }
 
     try {
-      // Handle file upload logic here...  This is a placeholder and needs actual file upload handling.
-      const filePath = ''; // Get the uploaded file path.  Needs implementation for actual file upload.
-      const thumbnailPath = await generateThumbnail(filePath); // Needs implementation for thumbnail generation.
+      if (!req.file) {
+        return res.status(400).json({ error: "No file uploaded" });
+      }
+
+      const thumbnailPath = await generateThumbnail(req.file.path);
 
       const [file] = await db.insert(files)
         .values({
           fileName: req.file.originalname,
           fileType: req.file.mimetype,
           fileSize: req.file.size,
-          path: filePath,
+          path: req.file.path,
           thumbnailPath,
           uploadedBy: req.user.id,
         })
