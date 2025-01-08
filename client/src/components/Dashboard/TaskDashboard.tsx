@@ -260,7 +260,10 @@ export function TaskDashboard() {
       return response.json();
     },
     onSuccess: () => {
+      // Invalidate multiple queries to ensure UI updates
+      queryClient.invalidateQueries({ queryKey: ['/api/tasks'] });
       queryClient.invalidateQueries({ queryKey: ['/api/tasks/stats'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/users'] });
       setSyncStatus("synced");
       toast({
         title: "Success",
@@ -277,6 +280,7 @@ export function TaskDashboard() {
     },
     onError: (error: Error) => {
       setSyncStatus("error");
+      console.error('Task creation error:', error);
       if (!taskError) {
         setTaskError({
           type: 'network',
@@ -284,6 +288,11 @@ export function TaskDashboard() {
           details: 'There was an error creating the task. Please try again.'
         });
       }
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
     },
   });
 
