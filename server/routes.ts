@@ -7,9 +7,13 @@ import { documents, documentVersions, documentInteractions, documentCollaborator
 import { and, eq, desc, sql } from "drizzle-orm";
 import fs from "fs/promises";
 import path from "path";
+import { errorHandler, apiErrorLogger, errorLogger } from "./error-handler";
 
 export function registerRoutes(app: Express): Server {
   setupAuth(app);
+
+  // Add error logging middleware
+  app.use(apiErrorLogger);
 
   // Theme customization
   app.post("/api/theme", async (req, res) => {
@@ -418,7 +422,23 @@ export function registerRoutes(app: Express): Server {
     res.json(allUsers);
   });
 
+  // Add error logging endpoint
+  app.post("/api/errors/log", async (req, res) => {
+    const { error, componentStack, timestamp, url } = req.body;
+
+    await errorLogger.log({
+      message: `Client Error: ${error}`,
+      stack: componentStack,
+    } as Error, req, 'error');
+
+    res.json({ success: true });
+  });
+
   const httpServer = createServer(app);
   setupWebSocket(httpServer);
+
+  // Add error handler middleware last
+  app.use(errorHandler);
+
   return httpServer;
 }

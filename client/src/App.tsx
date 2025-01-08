@@ -4,6 +4,7 @@ import { Toaster } from "@/components/ui/toaster";
 import AuthPage from "./pages/AuthPage";
 import DashboardPage from "./pages/DashboardPage";
 import { useUser } from "./hooks/use-user";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 
 // Protected route wrapper component
 function ProtectedRoute({ component: Component }: { component: React.ComponentType }) {
@@ -58,9 +59,9 @@ function App() {
 
 export default function AppWrapper() {
   return (
-    <>
+    <ErrorBoundary>
       <App />
       <Toaster />
-    </>
+    </ErrorBoundary>
   );
 }
