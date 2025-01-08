@@ -1,39 +1,31 @@
 import { WebSocket, WebSocketServer } from 'ws';
 import type { Server } from 'http';
-import type { Document } from '@db/schema';
+import type { Task } from '@db/schema';
 import { db } from '@db';
 import { eq } from 'drizzle-orm';
-import { documents } from '@db/schema';
+import { tasks } from '@db/schema';
 
 interface Client {
   id: string;
   ws: WebSocket;
-  documentId: number;
   userId: number;
 }
 
-interface DocumentUpdate {
-  type: 'update';
-  documentId: number;
-  content: string;
+interface TaskUpdate {
+  type: 'task_update';
+  taskId: number;
+  status: string;
   userId: number;
 }
 
-interface CursorUpdate {
-  type: 'cursor';
-  documentId: number;
-  userId: number;
-  position: { line: number; ch: number };
-}
-
-type Message = DocumentUpdate | CursorUpdate;
+type Message = TaskUpdate;
 
 export function setupWebSocket(server: Server) {
   const wss = new WebSocketServer({ 
     server,
-    verifyClient: ({ req }) => {
+    verifyClient: (info) => {
       // Skip Vite HMR WebSocket connections
-      return !req.headers['sec-websocket-protocol']?.includes('vite-hmr');
+      return !info.req.headers['sec-websocket-protocol']?.includes('vite-hmr');
     }
   });
 
@@ -49,22 +41,15 @@ export function setupWebSocket(server: Server) {
 
         if (!client) return;
 
-        if (message.type === 'update') {
-          // Save document changes to database
-          await db.update(documents)
-            .set({ content: message.content })
-            .where(eq(documents.id, message.documentId));
+        if (message.type === 'task_update') {
+          // Update task status in database
+          await db.update(tasks)
+            .set({ status: message.status })
+            .where(eq(tasks.id, message.taskId));
 
-          // Broadcast to all clients viewing this document
-          Array.from(clients.entries()).forEach(([id, otherClient]) => {
-            if (otherClient.documentId === message.documentId && id !== clientId) {
-              otherClient.ws.send(JSON.stringify(message));
-            }
-          });
-        } else if (message.type === 'cursor') {
-          // Broadcast cursor position to other clients
-          Array.from(clients.entries()).forEach(([id, otherClient]) => {
-            if (otherClient.documentId === message.documentId && id !== clientId) {
+          // Broadcast to all other clients
+          Array.from(clients.values()).forEach((otherClient) => {
+            if (otherClient.id !== clientId) {
               otherClient.ws.send(JSON.stringify(message));
             }
           });
@@ -78,11 +63,11 @@ export function setupWebSocket(server: Server) {
       clients.delete(clientId);
     });
 
-    // Handle client authentication and document joining
+    // Handle client authentication
     ws.on('message', (data) => {
       try {
-        const { documentId, userId } = JSON.parse(data.toString());
-        clients.set(clientId, { id: clientId, ws, documentId, userId });
+        const { userId } = JSON.parse(data.toString());
+        clients.set(clientId, { id: clientId, ws, userId });
       } catch (error) {
         console.error('WebSocket auth error:', error);
       }

@@ -12,134 +12,39 @@ export const users = pgTable("users", {
   companyName: text("company_name").notNull(),
   address: text("address").notNull(),
   role: text("role").notNull().default("client"),
-  createdAt: timestamp("created_at").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
-export const documents = pgTable("documents", {
-  id: serial("id").primaryKey(),
-  userId: integer("user_id").references(() => users.id),
-  name: text("name").notNull(),
-  content: text("content").notNull().default(""),
-  driveFileId: text("drive_file_id").notNull(),
-  type: text("type").notNull(),
-  category: varchar("category", { length: 50 }).notNull(),
-  tags: text("tags").array(),
-  industry: varchar("industry", { length: 100 }),
-  accessCount: integer("access_count").default(0),
-  lastEditedBy: integer("last_edited_by").references(() => users.id),
-  lastEditedAt: timestamp("last_edited_at").defaultNow(),
-  currentVersionId: integer("current_version_id"),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-});
-
-export const documentVersions = pgTable("document_versions", {
-  id: serial("id").primaryKey(),
-  documentId: integer("document_id").references(() => documents.id),
-  versionNumber: integer("version_number").notNull(),
-  content: text("content").notNull(),
-  createdBy: integer("created_by").references(() => users.id),
-  createdAt: timestamp("created_at").defaultNow(),
-  commitMessage: text("commit_message"),
-});
-
-export const documentCollaborators = pgTable("document_collaborators", {
-  id: serial("id").primaryKey(),
-  documentId: integer("document_id").references(() => documents.id),
-  userId: integer("user_id").references(() => users.id),
-  accessLevel: varchar("access_level", { length: 20 }).notNull(),
-  lastAccessed: timestamp("last_accessed").defaultNow(),
-});
-
-export const documentInteractions = pgTable("document_interactions", {
-  id: serial("id").primaryKey(),
-  userId: integer("user_id").references(() => users.id),
-  documentId: integer("document_id").references(() => documents.id),
-  interactionType: varchar("interaction_type", { length: 20 }).notNull(),
-  createdAt: timestamp("created_at").defaultNow(),
-});
-
-export const questionnaires = pgTable("questionnaires", {
+export const tasks = pgTable("tasks", {
   id: serial("id").primaryKey(),
   title: text("title").notNull(),
-  questions: jsonb("questions").notNull(),
-  createdAt: timestamp("created_at").defaultNow(),
+  description: text("description"),
+  status: text("status").notNull().default("pending"),
+  priority: text("priority").notNull().default("medium"),
+  assignedTo: integer("assigned_to").references(() => users.id),
+  assignedBy: integer("assigned_by").references(() => users.id),
+  deadline: timestamp("deadline"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  completedAt: timestamp("completed_at"),
 });
 
-export const responses = pgTable("responses", {
-  id: serial("id").primaryKey(),
-  userId: integer("user_id").references(() => users.id),
-  questionnaireId: integer("questionnaire_id").references(() => questionnaires.id),
-  answers: jsonb("answers").notNull(),
-  submittedAt: timestamp("submitted_at").defaultNow(),
-});
+// Task relations
+export const taskRelations = relations(tasks, ({ one }) => ({
+  assignee: one(users, {
+    fields: [tasks.assignedTo],
+    references: [users.id],
+  }),
+  assigner: one(users, {
+    fields: [tasks.assignedBy],
+    references: [users.id],
+  }),
+}));
 
+// User relations
 export const userRelations = relations(users, ({ many }) => ({
-  documents: many(documents),
-  responses: many(responses),
-  documentInteractions: many(documentInteractions),
-}));
-
-export const documentRelations = relations(documents, ({ one, many }) => ({
-  user: one(users, {
-    fields: [documents.userId],
-    references: [users.id],
-  }),
-  lastEditor: one(users, {
-    fields: [documents.lastEditedBy],
-    references: [users.id],
-  }),
-  versions: many(documentVersions),
-  collaborators: many(documentCollaborators),
-  interactions: many(documentInteractions),
-  currentVersion: one(documentVersions, {
-    fields: [documents.currentVersionId],
-    references: [documentVersions.id],
-  }),
-}));
-
-export const documentInteractionRelations = relations(documentInteractions, ({ one }) => ({
-  user: one(users, {
-    fields: [documentInteractions.userId],
-    references: [users.id],
-  }),
-  document: one(documents, {
-    fields: [documentInteractions.documentId],
-    references: [documents.id],
-  }),
-}));
-
-export const documentCollaboratorRelations = relations(documentCollaborators, ({ one }) => ({
-  document: one(documents, {
-    fields: [documentCollaborators.documentId],
-    references: [documents.id],
-  }),
-  user: one(users, {
-    fields: [documentCollaborators.userId],
-    references: [users.id],
-  }),
-}));
-
-export const documentVersionRelations = relations(documentVersions, ({ one }) => ({
-  document: one(documents, {
-    fields: [documentVersions.documentId],
-    references: [documents.id],
-  }),
-  creator: one(users, {
-    fields: [documentVersions.createdBy],
-    references: [users.id],
-  }),
-}));
-
-export const responseRelations = relations(responses, ({ one }) => ({
-  user: one(users, {
-    fields: [responses.userId],
-    references: [users.id],
-  }),
-  questionnaire: one(questionnaires, {
-    fields: [responses.questionnaireId],
-    references: [questionnaires.id],
-  }),
+  assignedTasks: many(tasks, { relationName: "assignee" }),
+  createdTasks: many(tasks, { relationName: "assigner" }),
 }));
 
 export const loginSchema = z.object({
@@ -147,20 +52,23 @@ export const loginSchema = z.object({
   password: z.string().min(1, "Password is required"),
 });
 
+export const createTaskSchema = z.object({
+  title: z.string().min(1, "Title is required"),
+  description: z.string().optional(),
+  priority: z.enum(["low", "medium", "high"]),
+  assignedTo: z.number(),
+  deadline: z.string().optional(),
+});
+
+export const updateTaskSchema = createTaskSchema.partial().extend({
+  status: z.enum(["pending", "in_progress", "completed", "cancelled"]).optional(),
+});
+
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
-export type Document = typeof documents.$inferSelect;
-export type DocumentVersion = typeof documentVersions.$inferSelect;
-export type DocumentInteraction = typeof documentInteractions.$inferSelect;
-export type Questionnaire = typeof questionnaires.$inferSelect;
-export type Response = typeof responses.$inferSelect;
+export type Task = typeof tasks.$inferSelect;
+export type NewTask = typeof tasks.$inferInsert;
 export type LoginInput = z.infer<typeof loginSchema>;
 
 export const insertUserSchema = createInsertSchema(users);
 export const selectUserSchema = createSelectSchema(users);
-
-export const createVersionSchema = z.object({
-  documentId: z.number(),
-  content: z.string(),
-  commitMessage: z.string().optional(),
-});

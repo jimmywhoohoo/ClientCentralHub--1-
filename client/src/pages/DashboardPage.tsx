@@ -7,6 +7,7 @@ import type { Document, Questionnaire as QuestionnaireType } from "@db/schema";
 import { Card, CardContent } from "@/components/ui/card";
 import { Clock, FileText, Users, TrendingUp } from "lucide-react";
 import { DocumentRecommendations } from "../components/Dashboard/DocumentRecommendations";
+import { TaskList } from "../components/Dashboard/TaskList";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 export default function DashboardPage() {
@@ -51,7 +52,6 @@ export default function DashboardPage() {
       <Sidebar />
       <main className="flex-1 p-4 md:p-8 overflow-y-auto mt-16 md:mt-0 ml-0 md:ml-64">
         <div className="max-w-7xl mx-auto space-y-6 md:space-y-8">
-          {/* Stats Section */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {stats.map((stat) => (
               <Card key={stat.title} className="touch-manipulation">
@@ -74,6 +74,11 @@ export default function DashboardPage() {
               </Card>
             ))}
           </div>
+
+          {/* Tasks Section */}
+          <section className="touch-manipulation">
+            <TaskList />
+          </section>
 
           {/* Analytics Dashboard */}
           <section className="touch-manipulation">
