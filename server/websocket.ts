@@ -28,7 +28,7 @@ type Message = TaskUpdate;
 export function setupWebSocket(server: Server) {
   const wss = new WebSocketServer({ 
     server,
-    verifyClient: (info) => {
+    verifyClient: (info: any) => {
       // Skip Vite HMR WebSocket connections
       return !info.req.headers['sec-websocket-protocol']?.includes('vite-hmr');
     }
@@ -51,25 +51,37 @@ export function setupWebSocket(server: Server) {
 
     ws.on('message', async (data) => {
       try {
-        const message = JSON.parse(data.toString());
+        const message: Message = JSON.parse(data.toString());
         const client = clients.get(clientId);
 
         if (!client) return;
 
         if (message.type === 'task_update' && message.taskId && message.changes) {
-          // Update task in database
-          const [updatedTask] = await db
-            .update(tasks)
-            .set(message.changes)
-            .where(eq(tasks.id, message.taskId))
-            .returning();
+          try {
+            // Update task in database
+            const [updatedTask] = await db
+              .update(tasks)
+              .set({
+                status: message.changes.status,
+                completedAt: message.changes.completedAt ? new Date(message.changes.completedAt) : null,
+                updatedAt: new Date(message.changes.updatedAt)
+              })
+              .where(eq(tasks.id, message.taskId))
+              .returning();
 
-          if (updatedTask) {
-            // Broadcast task update to all clients
-            broadcastToClients({
-              type: 'TASK_UPDATE',
-              task: updatedTask
-            });
+            if (updatedTask) {
+              // Broadcast task update to all clients
+              broadcastToClients({
+                type: 'task_update',
+                task: updatedTask
+              });
+            }
+          } catch (error) {
+            console.error('Database update error:', error);
+            ws.send(JSON.stringify({
+              type: 'ERROR',
+              message: 'Failed to update task in database'
+            }));
           }
         }
       } catch (error) {
