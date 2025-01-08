@@ -108,7 +108,7 @@ export function TaskDashboard() {
       if (data.type === 'CONNECTED') {
         console.log('WebSocket Connected');
         setSyncStatus("synced");
-      } else if (data.type === 'TASK_UPDATE') {
+      } else if (data.type === 'task_update') { //Corrected casing here
         // Invalidate queries to refetch data
         queryClient.invalidateQueries({ queryKey: ['/api/tasks/stats'] });
         setSyncStatus("synced");
@@ -155,14 +155,15 @@ export function TaskDashboard() {
           type: 'task_update',
           taskId: task.id,
           changes: {
-            status: task.status === 'completed' ? 'pending' : 'completed',
-            completedAt: task.status === 'completed' ? null : new Date().toISOString(),
-            updatedAt: new Date().toISOString()
+            status: task.status,
+            completedAt: task.completedAt,
+            updatedAt: task.updatedAt
           },
           userId: user?.id
         };
 
         ws.send(JSON.stringify(message));
+        return task;
       } else {
         setTaskError({
           type: 'network',
@@ -175,7 +176,7 @@ export function TaskDashboard() {
     },
     onError: (error: Error) => {
       setSyncStatus("error");
-      if (!taskError) { // Only set error if no error is currently shown
+      if (!taskError) {
         setTaskError({
           type: 'sync',
           message: error.message,
@@ -183,6 +184,10 @@ export function TaskDashboard() {
         });
       }
     },
+    onSuccess: () => {
+      setSyncStatus("synced");
+      queryClient.invalidateQueries({ queryKey: ['/api/tasks/stats'] });
+    }
   });
 
   const createTaskMutation = useMutation({
@@ -255,9 +260,14 @@ export function TaskDashboard() {
   });
 
   const handleCompleteTask = (task: Task) => {
+    if (updateTaskMutation.isPending) return;
+
+    const newStatus = task.status === 'completed' ? 'pending' : 'completed';
     updateTaskMutation.mutate({
       ...task,
-      status: task.status === 'completed' ? 'pending' : 'completed'
+      status: newStatus,
+      completedAt: newStatus === 'completed' ? new Date().toISOString() : null,
+      updatedAt: new Date().toISOString()
     });
   };
 

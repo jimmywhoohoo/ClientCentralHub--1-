@@ -74,12 +74,18 @@ export function setupWebSocket(server: Server) {
               broadcastToClients({
                 type: 'task_update',
                 task: updatedTask
-              });
+              }, clientId);
+
+              // Send success response to the originating client
+              ws.send(JSON.stringify({
+                type: 'task_update_success',
+                task: updatedTask
+              }));
             }
           } catch (error) {
             console.error('Database update error:', error);
             ws.send(JSON.stringify({
-              type: 'ERROR',
+              type: 'error',
               message: 'Failed to update task in database'
             }));
           }
@@ -87,7 +93,7 @@ export function setupWebSocket(server: Server) {
       } catch (error) {
         console.error('WebSocket message error:', error);
         ws.send(JSON.stringify({
-          type: 'ERROR',
+          type: 'error',
           message: 'Failed to process message'
         }));
       }
@@ -106,7 +112,7 @@ export function setupWebSocket(server: Server) {
 
           // Send initial sync status
           ws.send(JSON.stringify({
-            type: 'CONNECTED',
+            type: 'connected',
             message: 'Successfully connected to real-time updates'
           }));
         }
