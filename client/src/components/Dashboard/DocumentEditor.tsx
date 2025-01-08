@@ -40,6 +40,25 @@ export function DocumentEditor({ document, onSave, isLoading }: DocumentEditorPr
   const [showChat, setShowChat] = useState(true);
   const [defaultLayout, setDefaultLayout] = useState([70, 30]);
 
+  const restoreVersion = async (versionId: number) => {
+    try {
+      const response = await fetch(`/api/documents/${document.id}/versions/${versionId}/restore`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to restore version');
+      }
+
+      const restoredContent = await response.json();
+      setContent(restoredContent.content);
+      setIsHistoryOpen(false);
+    } catch (error) {
+      console.error('Error restoring version:', error);
+    }
+  };
+
   useEffect(() => {
     // Fetch version history
     setIsLoadingVersions(true);
@@ -59,6 +78,7 @@ export function DocumentEditor({ document, onSave, isLoading }: DocumentEditorPr
         type: 'auth',
         documentId: document.id,
         userId: user?.id,
+        username: user?.username,
       }));
     };
 
@@ -90,7 +110,7 @@ export function DocumentEditor({ document, onSave, isLoading }: DocumentEditorPr
     return () => {
       socket.close();
     };
-  }, [document.id, user?.id]);
+  }, [document.id, user?.id, user?.username]);
 
   const handleContentChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newContent = e.target.value;
@@ -289,22 +309,3 @@ export function DocumentEditor({ document, onSave, isLoading }: DocumentEditorPr
     </>
   );
 }
-
-const restoreVersion = async (versionId: number) => {
-  try {
-    const response = await fetch(`/api/documents/${document.id}/versions/${versionId}/restore`, {
-      method: 'POST',
-      credentials: 'include',
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to restore version');
-    }
-
-    const restoredContent = await response.json();
-    setContent(restoredContent.content);
-    setIsHistoryOpen(false);
-  } catch (error) {
-    console.error('Error restoring version:', error);
-  }
-};
