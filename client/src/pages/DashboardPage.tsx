@@ -3,15 +3,23 @@ import { DocumentList } from "../components/Dashboard/DocumentList";
 import { Questionnaire } from "../components/Dashboard/Questionnaire";
 import { DocumentAnalytics } from "../components/Dashboard/DocumentAnalytics";
 import { useQuery } from "@tanstack/react-query";
-import type { Document, Questionnaire as QuestionnaireType } from "@db/schema";
+import type { Document } from "@db/schema";
 import { Card, CardContent } from "@/components/ui/card";
 import { Clock, FileText, Users, TrendingUp } from "lucide-react";
 import { DocumentRecommendations } from "../components/Dashboard/DocumentRecommendations";
 import { TaskList } from "../components/Dashboard/TaskList";
 import { useIsMobile } from "@/hooks/use-mobile";
 
+interface QuestionnaireType {
+  id: number;
+  title: string;
+  status: string;
+  dueDate: string;
+}
+
 export default function DashboardPage() {
   const isMobile = useIsMobile();
+
   const { data: documents, isLoading: isLoadingDocuments } = useQuery<Document[]>({
     queryKey: ["/api/documents"],
   });
