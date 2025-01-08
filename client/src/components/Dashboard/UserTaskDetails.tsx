@@ -58,27 +58,29 @@ export function UserTaskDetails({ user, open, onOpenChange }: UserTaskDetailsPro
 
   const deleteTaskMutation = useMutation({
     mutationFn: async (taskId: number) => {
-      // First delete related task activities
-      const activitiesResponse = await fetch(`/api/admin/tasks/${taskId}/activities`, {
+      // First, delete all activities for this task
+      const deleteActivitiesResponse = await fetch(`/api/admin/tasks/${taskId}/activities`, {
         method: "DELETE",
         credentials: "include",
       });
 
-      if (!activitiesResponse.ok) {
-        throw new Error(await activitiesResponse.text());
+      if (!deleteActivitiesResponse.ok) {
+        const errorText = await deleteActivitiesResponse.text();
+        throw new Error(`Failed to delete task activities: ${errorText}`);
       }
 
-      // Then delete the task
-      const taskResponse = await fetch(`/api/admin/tasks/${taskId}`, {
+      // Now that activities are deleted, delete the task
+      const deleteTaskResponse = await fetch(`/api/admin/tasks/${taskId}`, {
         method: "DELETE",
         credentials: "include",
       });
 
-      if (!taskResponse.ok) {
-        throw new Error(await taskResponse.text());
+      if (!deleteTaskResponse.ok) {
+        const errorText = await deleteTaskResponse.text();
+        throw new Error(`Failed to delete task: ${errorText}`);
       }
 
-      return taskResponse.json();
+      return deleteTaskResponse.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/admin/users/${user?.id}/tasks`] });
@@ -98,6 +100,14 @@ export function UserTaskDetails({ user, open, onOpenChange }: UserTaskDetailsPro
   });
 
   if (!user) return null;
+
+  const handleDeleteTask = async (taskId: number) => {
+    try {
+      await deleteTaskMutation.mutateAsync(taskId);
+    } catch (error) {
+      console.error('Error deleting task:', error);
+    }
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -217,7 +227,7 @@ export function UserTaskDetails({ user, open, onOpenChange }: UserTaskDetailsPro
                           variant="ghost"
                           size="sm"
                           className="text-red-600 hover:text-red-800"
-                          onClick={() => deleteTaskMutation.mutate(task.id)}
+                          onClick={() => handleDeleteTask(task.id)}
                           disabled={deleteTaskMutation.isPending}
                         >
                           {deleteTaskMutation.isPending ? (

@@ -142,7 +142,7 @@ export const notificationPreferences = pgTable("notification_preferences", {
 
 export const taskActivities = pgTable("task_activities", {
   id: serial("id").primaryKey(),
-  taskId: integer("task_id").references(() => tasks.id).notNull(),
+  taskId: integer("task_id").references(() => tasks.id, { onDelete: "cascade" }).notNull(),
   userId: integer("user_id").references(() => users.id).notNull(),
   action: text("action").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
