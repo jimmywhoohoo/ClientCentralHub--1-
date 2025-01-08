@@ -8,65 +8,84 @@ import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { Paintbrush } from "lucide-react";
 
-interface Theme {
-  variant: "professional" | "modern" | "minimal";
-  primary: string;
-  background: string;
+const defaultTheme = {
+  variant: "professional" as const,
+  primary: "hsl(222.2 47.4% 11.2%)",
+  background: "hsl(0 0% 100%)",
   brandColors: {
-    primary: string;
-    secondary: string;
-    accent: string;
-  };
-  appearance: "light" | "dark";
-  radius: number;
+    primary: "#000000",
+    secondary: "#666666",
+    accent: "#3498db",
+  },
+  appearance: "light" as const,
+  radius: 0.5,
   typography: {
-    fontFamily: string;
-    headingWeight: string;
-  };
+    fontFamily: "Inter, sans-serif",
+    headingWeight: "600",
+  },
   branding: {
-    companyName: string;
-    logoUrl: string;
-    style: string;
-  };
-}
+    companyName: "",
+    logoUrl: "",
+    style: "minimal",
+  },
+};
 
 export function ThemeCustomizer() {
-  const [theme, setTheme] = useState<Theme>(JSON.parse(localStorage.getItem("theme") || "{}"));
+  const [theme, setTheme] = useState(() => {
+    try {
+      const savedTheme = localStorage.getItem("theme");
+      return savedTheme ? JSON.parse(savedTheme) : defaultTheme;
+    } catch (error) {
+      console.error("Error parsing theme from localStorage:", error);
+      return defaultTheme;
+    }
+  });
   const { toast } = useToast();
 
   const handleThemeChange = (field: string, value: any) => {
     const newTheme = { ...theme, [field]: value };
     setTheme(newTheme);
-    localStorage.setItem("theme", JSON.stringify(newTheme));
-
-    // Apply theme changes
-    document.documentElement.style.setProperty(`--${field}`, value);
+    try {
+      localStorage.setItem("theme", JSON.stringify(newTheme));
+      // Apply theme changes
+      document.documentElement.style.setProperty(`--${field}`, value);
+    } catch (error) {
+      console.error("Error saving theme to localStorage:", error);
+    }
   };
 
-  const handleBrandColorChange = (colorType: keyof Theme["brandColors"], value: string) => {
+  const handleBrandColorChange = (colorType: keyof typeof defaultTheme.brandColors, value: string) => {
     const newTheme = {
       ...theme,
       brandColors: { ...theme.brandColors, [colorType]: value }
     };
     setTheme(newTheme);
-    localStorage.setItem("theme", JSON.stringify(newTheme));
-    
-    document.documentElement.style.setProperty(`--brand-${colorType}`, value);
+    try {
+      localStorage.setItem("theme", JSON.stringify(newTheme));
+      document.documentElement.style.setProperty(`--brand-${colorType}`, value);
+    } catch (error) {
+      console.error("Error saving brand colors to localStorage:", error);
+    }
   };
 
-  const applyTheme = () => {
+  const applyTheme = async () => {
     try {
-      fetch("/api/theme", {
+      const response = await fetch("/api/theme", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(theme),
-      }).then(() => {
-        toast({
-          title: "Theme Updated",
-          description: "Your theme changes have been saved.",
-        });
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to save theme: ${response.statusText}`);
+      }
+
+      toast({
+        title: "Theme Updated",
+        description: "Your theme changes have been saved.",
       });
     } catch (error) {
+      console.error("Error saving theme:", error);
       toast({
         title: "Error",
         description: "Failed to save theme changes.",
@@ -119,38 +138,6 @@ export function ThemeCustomizer() {
           </div>
 
           <div className="space-y-2">
-            <Label>Secondary Color</Label>
-            <div className="flex gap-2">
-              <Input
-                type="color"
-                value={theme.brandColors.secondary}
-                onChange={(e) => handleBrandColorChange("secondary", e.target.value)}
-              />
-              <Input
-                value={theme.brandColors.secondary}
-                onChange={(e) => handleBrandColorChange("secondary", e.target.value)}
-                placeholder="Secondary color (HSL or HEX)"
-              />
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label>Accent Color</Label>
-            <div className="flex gap-2">
-              <Input
-                type="color"
-                value={theme.brandColors.accent}
-                onChange={(e) => handleBrandColorChange("accent", e.target.value)}
-              />
-              <Input
-                value={theme.brandColors.accent}
-                onChange={(e) => handleBrandColorChange("accent", e.target.value)}
-                placeholder="Accent color (HSL or HEX)"
-              />
-            </div>
-          </div>
-
-          <div className="space-y-2">
             <Label>Border Radius</Label>
             <Input
               type="number"
@@ -169,34 +156,6 @@ export function ThemeCustomizer() {
               onCheckedChange={(checked) =>
                 handleThemeChange("appearance", checked ? "dark" : "light")
               }
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label>Company Name</Label>
-            <Input
-              value={theme.branding?.companyName}
-              onChange={(e) =>
-                setTheme({
-                  ...theme,
-                  branding: { ...theme.branding, companyName: e.target.value }
-                })
-              }
-              placeholder="Your company name"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label>Logo URL</Label>
-            <Input
-              value={theme.branding?.logoUrl}
-              onChange={(e) =>
-                setTheme({
-                  ...theme,
-                  branding: { ...theme.branding, logoUrl: e.target.value }
-                })
-              }
-              placeholder="URL to your company logo"
             />
           </div>
         </div>
