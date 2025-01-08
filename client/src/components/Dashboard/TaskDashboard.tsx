@@ -111,12 +111,20 @@ export function TaskDashboard() {
         console.log('WebSocket Connected');
         setSyncStatus("synced");
       } else if (data.type === 'task_update' || data.type === 'task_update_success') {
+        // Invalidate both task stats and task list queries
         queryClient.invalidateQueries({ queryKey: ['/api/tasks/stats'] });
+        queryClient.invalidateQueries({ queryKey: ['/api/tasks'] });
         setSyncStatus("synced");
 
         if (data.activity) {
           setActivities(prev => [data.activity, ...prev].slice(0, 50));
         }
+
+        // Show success toast for task updates
+        toast({
+          title: "Task Updated",
+          description: "Task status has been updated successfully",
+        });
       } else if (data.type === 'error') {
         setSyncStatus("error");
         setTaskError({
@@ -148,10 +156,11 @@ export function TaskDashboard() {
         websocket.close();
       }
     };
-  }, [user]);
+  }, [user, queryClient, toast]);
 
   const { data: taskStats, isLoading } = useQuery<TaskStats>({
     queryKey: ['/api/tasks/stats', filters],
+    refetchInterval: 5000, // Refresh every 5 seconds to ensure progress stays updated
   });
 
   const { data: usersData } = useQuery<PaginatedResponse>({
@@ -280,6 +289,17 @@ export function TaskDashboard() {
 
   const handleCompleteTask = (task: Task) => {
     if (updateTaskMutation.isPending) return;
+
+    // Optimistically update the UI
+    queryClient.setQueryData<TaskStats>(['/api/tasks/stats'], (old) => {
+      if (!old) return old;
+      return {
+        ...old,
+        pending: task.status === 'completed' ? old.pending - 1 : old.pending + 1,
+        completed: task.status === 'completed' ? old.completed + 1 : old.completed - 1,
+      };
+    });
+
     updateTaskMutation.mutate(task);
   };
 
