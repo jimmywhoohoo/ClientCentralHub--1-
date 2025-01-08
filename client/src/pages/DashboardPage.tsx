@@ -1,6 +1,7 @@
 import { Sidebar } from "../components/Dashboard/Sidebar";
 import { DocumentList } from "../components/Dashboard/DocumentList";
 import { Questionnaire } from "../components/Dashboard/Questionnaire";
+import { DocumentAnalytics } from "../components/Dashboard/DocumentAnalytics";
 import { useQuery } from "@tanstack/react-query";
 import type { Document, Questionnaire as QuestionnaireType } from "@db/schema";
 import { Card, CardContent } from "@/components/ui/card";
@@ -72,63 +73,15 @@ export default function DashboardPage() {
             ))}
           </div>
 
+          {/* Analytics Dashboard */}
+          <section>
+            <DocumentAnalytics />
+          </section>
+
           {/* Add Recommendations Section */}
           <section>
             <DocumentRecommendations />
           </section>
-
-          <div className="grid md:grid-cols-2 gap-8">
-            {/* Upcoming Deadlines */}
-            <Card>
-              <CardContent className="p-6">
-                <h2 className="text-lg font-semibold mb-4">Upcoming Deadlines</h2>
-                <div className="space-y-4">
-                  <div className="flex justify-between items-center">
-                    <div>
-                      <p className="font-medium">Q1 Tax Filing</p>
-                      <p className="text-sm text-muted-foreground">Tech Corp</p>
-                    </div>
-                    <p className="text-sm text-muted-foreground">2024-03-31</p>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <div>
-                      <p className="font-medium">Annual Audit</p>
-                      <p className="text-sm text-muted-foreground">Global Industries</p>
-                    </div>
-                    <p className="text-sm text-muted-foreground">2024-04-15</p>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <div>
-                      <p className="font-medium">Financial Statement</p>
-                      <p className="text-sm text-muted-foreground">Startup Inc</p>
-                    </div>
-                    <p className="text-sm text-muted-foreground">2024-04-30</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Recent Updates */}
-            <Card>
-              <CardContent className="p-6">
-                <h2 className="text-lg font-semibold mb-4">Recent Regulation Updates</h2>
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <p className="font-medium">New Tax Reporting Requirements</p>
-                    <p className="text-sm text-muted-foreground">Federal - 2024-03-15</p>
-                  </div>
-                  <div className="space-y-2">
-                    <p className="font-medium">Updated Depreciation Guidelines</p>
-                    <p className="text-sm text-muted-foreground">State - 2024-03-10</p>
-                  </div>
-                  <div className="space-y-2">
-                    <p className="font-medium">Small Business Relief Program</p>
-                    <p className="text-sm text-muted-foreground">Federal - 2024-03-05</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
 
           {/* Documents and Questionnaires */}
           <div className="grid md:grid-cols-2 gap-8">

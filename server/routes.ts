@@ -354,6 +354,60 @@ export function registerRoutes(app: Express): Server {
   });
 
 
+  // Add analytics endpoints
+  app.get("/api/analytics/documents", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).send("Not authenticated");
+    }
+
+    try {
+      // Get total views and downloads
+      const [interactions] = await db
+        .select({
+          totalViews: sql<number>`COUNT(*) FILTER (WHERE ${documentInteractions.interactionType} = 'view')`,
+          totalDownloads: sql<number>`COUNT(*) FILTER (WHERE ${documentInteractions.interactionType} = 'download')`,
+          activeUsers: sql<number>`COUNT(DISTINCT ${documentInteractions.userId})`,
+        })
+        .from(documentInteractions);
+
+      // Get daily stats for the last 30 days
+      const dailyStats = await db
+        .select({
+          date: sql<string>`DATE(${documentInteractions.createdAt})::text`,
+          views: sql<number>`COUNT(*) FILTER (WHERE ${documentInteractions.interactionType} = 'view')`,
+          downloads: sql<number>`COUNT(*) FILTER (WHERE ${documentInteractions.interactionType} = 'download')`,
+        })
+        .from(documentInteractions)
+        .where(
+          sql`${documentInteractions.createdAt} >= NOW() - INTERVAL '30 days'`
+        )
+        .groupBy(sql`DATE(${documentInteractions.createdAt})`)
+        .orderBy(sql`DATE(${documentInteractions.createdAt})`);
+
+      // Get popular documents
+      const popularDocuments = await db.query.documents.findMany({
+        orderBy: (documents, { desc }) => [desc(documents.accessCount)],
+        limit: 10,
+        columns: {
+          id: true,
+          name: true,
+          accessCount: true,
+        },
+      });
+
+      res.json({
+        totalViews: interactions?.totalViews || 0,
+        totalDownloads: interactions?.totalDownloads || 0,
+        activeUsers: interactions?.activeUsers || 0,
+        dailyStats,
+        popularDocuments,
+      });
+    } catch (error) {
+      console.error("Error fetching analytics:", error);
+      res.status(500).send("Failed to fetch analytics");
+    }
+  });
+
   // Admin routes
   app.get("/api/admin/users", async (req, res) => {
     if (!req.isAuthenticated() || req.user.role !== "admin") {
