@@ -1,8 +1,9 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
+import { setupWebSocket } from "./websocket";
 import { db } from "@db";
-import { documents, documentInteractions, users } from "@db/schema";
+import { documents, documentInteractions, documentCollaborators, users } from "@db/schema";
 import { and, eq, desc, sql } from "drizzle-orm";
 
 export function registerRoutes(app: Express): Server {
@@ -24,7 +25,55 @@ export function registerRoutes(app: Express): Server {
     res.json(userDocs);
   });
 
-  // New route for document recommendations
+  // Update document
+  app.put("/api/documents/:id", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).send("Not authenticated");
+    }
+
+    const { id } = req.params;
+    const { content } = req.body;
+
+    // Check if user has write access
+    const [collaborator] = await db
+      .select()
+      .from(documentCollaborators)
+      .where(
+        and(
+          eq(documentCollaborators.documentId, parseInt(id)),
+          eq(documentCollaborators.userId, req.user.id)
+        )
+      )
+      .limit(1);
+
+    const [document] = await db
+      .select()
+      .from(documents)
+      .where(eq(documents.id, parseInt(id)))
+      .limit(1);
+
+    if (!document) {
+      return res.status(404).send("Document not found");
+    }
+
+    if (document.userId !== req.user.id && (!collaborator || collaborator.accessLevel === 'read')) {
+      return res.status(403).send("No write access");
+    }
+
+    const [updatedDocument] = await db
+      .update(documents)
+      .set({
+        content,
+        lastEditedBy: req.user.id,
+        lastEditedAt: new Date(),
+      })
+      .where(eq(documents.id, parseInt(id)))
+      .returning();
+
+    res.json(updatedDocument);
+  });
+
+  // Document recommendations
   app.get("/api/documents/recommendations", async (req, res) => {
     if (!req.isAuthenticated()) {
       return res.status(401).send("Not authenticated");
@@ -65,6 +114,41 @@ export function registerRoutes(app: Express): Server {
     });
 
     res.json(recommendations);
+  });
+
+  // Document collaborators
+  app.post("/api/documents/:id/collaborators", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).send("Not authenticated");
+    }
+
+    const { id } = req.params;
+    const { userId, accessLevel } = req.body;
+
+    const [document] = await db
+      .select()
+      .from(documents)
+      .where(eq(documents.id, parseInt(id)))
+      .limit(1);
+
+    if (!document) {
+      return res.status(404).send("Document not found");
+    }
+
+    if (document.userId !== req.user.id) {
+      return res.status(403).send("Not authorized");
+    }
+
+    const [collaborator] = await db
+      .insert(documentCollaborators)
+      .values({
+        documentId: parseInt(id),
+        userId,
+        accessLevel,
+      })
+      .returning();
+
+    res.json(collaborator);
   });
 
   // Questionnaires
@@ -138,5 +222,6 @@ export function registerRoutes(app: Express): Server {
   });
 
   const httpServer = createServer(app);
+  setupWebSocket(httpServer);
   return httpServer;
 }

@@ -19,14 +19,25 @@ export const documents = pgTable("documents", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").references(() => users.id),
   name: text("name").notNull(),
+  content: text("content").notNull().default(""),
   driveFileId: text("drive_file_id").notNull(),
   type: text("type").notNull(),
   category: varchar("category", { length: 50 }).notNull(),
   tags: text("tags").array(),
   industry: varchar("industry", { length: 100 }),
   accessCount: integer("access_count").default(0),
+  lastEditedBy: integer("last_edited_by").references(() => users.id),
+  lastEditedAt: timestamp("last_edited_at").defaultNow(),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const documentCollaborators = pgTable("document_collaborators", {
+  id: serial("id").primaryKey(),
+  documentId: integer("document_id").references(() => documents.id),
+  userId: integer("user_id").references(() => users.id),
+  accessLevel: varchar("access_level", { length: 20 }).notNull(), // 'read', 'write', 'admin'
+  lastAccessed: timestamp("last_accessed").defaultNow(),
 });
 
 export const documentInteractions = pgTable("document_interactions", {
@@ -63,6 +74,11 @@ export const documentRelations = relations(documents, ({ one, many }) => ({
     fields: [documents.userId],
     references: [users.id],
   }),
+  lastEditor: one(users, {
+    fields: [documents.lastEditedBy],
+    references: [users.id],
+  }),
+  collaborators: many(documentCollaborators),
   interactions: many(documentInteractions),
 }));
 
@@ -74,6 +90,17 @@ export const documentInteractionRelations = relations(documentInteractions, ({ o
   document: one(documents, {
     fields: [documentInteractions.documentId],
     references: [documents.id],
+  }),
+}));
+
+export const documentCollaboratorRelations = relations(documentCollaborators, ({ one }) => ({
+  document: one(documents, {
+    fields: [documentCollaborators.documentId],
+    references: [documents.id],
+  }),
+  user: one(users, {
+    fields: [documentCollaborators.userId],
+    references: [users.id],
   }),
 }));
 

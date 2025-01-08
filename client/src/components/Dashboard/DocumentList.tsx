@@ -1,10 +1,17 @@
 import type { Document } from "@db/schema";
 import { Card, CardContent } from "@/components/ui/card";
-import { FileText, Download, Trash2, Upload, Loader2 } from "lucide-react";
+import { FileText, Download, Trash2, Upload, Loader2, Edit } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
+import { DocumentEditor } from "./DocumentEditor";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 interface DocumentListProps {
   documents: Document[];
@@ -13,6 +20,7 @@ interface DocumentListProps {
 export function DocumentList({ documents }: DocumentListProps) {
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [selectedDocument, setSelectedDocument] = useState<Document | null>(null);
   const { toast } = useToast();
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -60,60 +68,86 @@ export function DocumentList({ documents }: DocumentListProps) {
     }
   };
 
+  const handleDocumentSave = () => {
+    toast({
+      title: "Success",
+      description: "Document saved successfully",
+    });
+  };
+
   return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-4">
-        <Button
-          variant="outline"
-          className="relative"
-          disabled={uploading}
-        >
-          <input
-            type="file"
-            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-            onChange={handleFileUpload}
-            disabled={uploading}
-          />
-          {uploading ? (
-            <Loader2 className="h-4 w-4 animate-spin mr-2" />
-          ) : (
-            <Upload className="h-4 w-4 mr-2" />
+    <>
+      <div className="space-y-4">
+        <div className="flex items-center gap-4">
+          <Button variant="outline" className="relative" disabled={uploading}>
+            <input
+              type="file"
+              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+              onChange={handleFileUpload}
+              disabled={uploading}
+            />
+            {uploading ? (
+              <Loader2 className="h-4 w-4 animate-spin mr-2" />
+            ) : (
+              <Upload className="h-4 w-4 mr-2" />
+            )}
+            Upload Document
+          </Button>
+          {uploading && (
+            <div className="flex-1">
+              <Progress value={uploadProgress} className="h-2" />
+              <p className="text-sm text-muted-foreground mt-1">
+                Uploading... {uploadProgress}%
+              </p>
+            </div>
           )}
-          Upload Document
-        </Button>
-        {uploading && (
-          <div className="flex-1">
-            <Progress value={uploadProgress} className="h-2" />
-            <p className="text-sm text-muted-foreground mt-1">
-              Uploading... {uploadProgress}%
-            </p>
-          </div>
-        )}
+        </div>
+
+        {documents.map((doc) => (
+          <Card key={doc.id}>
+            <CardContent className="flex items-center justify-between p-4">
+              <div className="flex items-center gap-3">
+                <FileText className="h-5 w-5 text-muted-foreground" />
+                <div>
+                  <p className="font-medium">{doc.name}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {new Date(doc.createdAt).toLocaleDateString()}
+                  </p>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => setSelectedDocument(doc)}
+                >
+                  <Edit className="h-4 w-4" />
+                </Button>
+                <Button size="icon" variant="ghost">
+                  <Download className="h-4 w-4" />
+                </Button>
+                <Button size="icon" variant="ghost">
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
       </div>
 
-      {documents.map((doc) => (
-        <Card key={doc.id}>
-          <CardContent className="flex items-center justify-between p-4">
-            <div className="flex items-center gap-3">
-              <FileText className="h-5 w-5 text-muted-foreground" />
-              <div>
-                <p className="font-medium">{doc.name}</p>
-                <p className="text-sm text-muted-foreground">
-                  {new Date(doc.createdAt).toLocaleDateString()}
-                </p>
-              </div>
-            </div>
-            <div className="flex gap-2">
-              <Button size="icon" variant="ghost">
-                <Download className="h-4 w-4" />
-              </Button>
-              <Button size="icon" variant="ghost">
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      ))}
-    </div>
+      <Dialog open={!!selectedDocument} onOpenChange={() => setSelectedDocument(null)}>
+        <DialogContent className="max-w-4xl h-[80vh]">
+          <DialogHeader>
+            <DialogTitle>Edit Document</DialogTitle>
+          </DialogHeader>
+          {selectedDocument && (
+            <DocumentEditor
+              document={selectedDocument}
+              onSave={handleDocumentSave}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
