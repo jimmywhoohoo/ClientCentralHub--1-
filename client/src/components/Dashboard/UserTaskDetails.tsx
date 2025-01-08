@@ -47,13 +47,13 @@ export function UserTaskDetails({ user, open, onOpenChange }: UserTaskDetailsPro
   const { toast } = useToast();
 
   const { data: taskStats, isLoading: loadingStats } = useQuery<TaskStats>({
-    queryKey: ["/api/admin/users", user?.id, "tasks/stats"],
-    enabled: !!user,
+    queryKey: [`/api/admin/users/${user?.id}/tasks/stats`],
+    enabled: !!user && open,
   });
 
   const { data: tasks, isLoading: loadingTasks } = useQuery<Task[]>({
-    queryKey: ["/api/admin/users", user?.id, "tasks"],
-    enabled: !!user,
+    queryKey: [`/api/admin/users/${user?.id}/tasks`],
+    enabled: !!user && open,
   });
 
   const deleteTaskMutation = useMutation({
@@ -70,8 +70,8 @@ export function UserTaskDetails({ user, open, onOpenChange }: UserTaskDetailsPro
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/users", user?.id, "tasks"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/users", user?.id, "tasks/stats"] });
+      queryClient.invalidateQueries({ queryKey: [`/api/admin/users/${user?.id}/tasks`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/admin/users/${user?.id}/tasks/stats`] });
       toast({
         title: "Success",
         description: "Task deleted successfully",
