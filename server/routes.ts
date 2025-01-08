@@ -404,6 +404,76 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Task Management Routes
+  app.post("/api/tasks", async (req, res) => {
+    if (!req.isAuthenticated() || req.user.role !== "admin") {
+      return res.status(403).json({ error: "Not authorized" });
+    }
+
+    try {
+      const result = createTaskSchema.safeParse(req.body);
+      if (!result.success) {
+        return res.status(400).json({
+          error: "Invalid input: " + result.error.issues.map(i => i.message).join(", ")
+        });
+      }
+
+      const [task] = await db.insert(tasks)
+        .values({
+          ...result.data,
+          assignedBy: req.user.id,
+          status: "pending",
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .returning();
+
+      res.json(task);
+    } catch (error) {
+      console.error("Error creating task:", error);
+      res.status(500).json({ error: "Failed to create task" });
+    }
+  });
+
+  app.get("/api/tasks/stats", async (req, res) => {
+    if (!req.isAuthenticated() || req.user.role !== "admin") {
+      return res.status(403).json({ error: "Not authorized" });
+    }
+
+    try {
+      const now = new Date();
+      const [stats] = await db.select({
+        pending: sql<number>`COUNT(*) FILTER (WHERE ${tasks.status} = 'pending')`,
+        completed: sql<number>`COUNT(*) FILTER (WHERE ${tasks.status} = 'completed')`,
+        overdue: sql<number>`COUNT(*) FILTER (WHERE ${tasks.status} = 'pending' AND ${tasks.deadline} < ${now})`,
+      }).from(tasks);
+
+      const upcomingDeadlines = await db.query.tasks.findMany({
+        where: or(
+          eq(tasks.status, "pending"),
+          eq(tasks.status, "in_progress")
+        ),
+        orderBy: [asc(tasks.deadline)],
+        limit: 5,
+      });
+
+      const recentlyCompleted = await db.query.tasks.findMany({
+        where: eq(tasks.status, "completed"),
+        orderBy: [desc(tasks.completedAt)],
+        limit: 5,
+      });
+
+      res.json({
+        ...stats,
+        upcomingDeadlines,
+        recentlyCompleted,
+      });
+    } catch (error) {
+      console.error("Error fetching task stats:", error);
+      res.status(500).json({ error: "Failed to fetch task stats" });
+    }
+  });
+
   const httpServer = createServer(app);
   setupWebSocket(httpServer);
 

@@ -74,15 +74,21 @@ export function TaskDashboard() {
 
   const createTaskMutation = useMutation({
     mutationFn: async (task: NewTask) => {
+      const formattedTask = {
+        ...task,
+        deadline: task.deadline ? new Date(task.deadline).toISOString() : null,
+      };
+
       const response = await fetch('/api/tasks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(task),
+        body: JSON.stringify(formattedTask),
         credentials: 'include',
       });
 
       if (!response.ok) {
-        throw new Error(await response.text());
+        const errorText = await response.text();
+        throw new Error(errorText || 'Failed to create task');
       }
 
       return response.json();
@@ -195,7 +201,7 @@ export function TaskDashboard() {
                 >
                   <div className="flex items-center justify-between">
                     <h3 className="font-medium">{task.title}</h3>
-                    <Badge variant={getDueDateVariant(task.deadline)}>
+                    <Badge variant={getDueDateVariant(task.deadline ? task.deadline.toString() : null)}>
                       {task.deadline ? format(new Date(task.deadline), 'PP') : 'No deadline'}
                     </Badge>
                   </div>
@@ -203,7 +209,6 @@ export function TaskDashboard() {
                     {task.description}
                   </p>
                   <div className="flex items-center justify-between text-xs text-muted-foreground">
-                    <span>Assigned to: {task.assignee?.username}</span>
                     <span>Priority: {task.priority}</span>
                   </div>
                 </div>
@@ -233,7 +238,6 @@ export function TaskDashboard() {
                     {task.description}
                   </p>
                   <div className="flex items-center justify-between text-xs text-muted-foreground">
-                    <span>Completed by: {task.assignee?.username}</span>
                     <span>Priority: {task.priority}</span>
                   </div>
                 </div>
