@@ -16,6 +16,20 @@ export const users = pgTable("users", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+export const companyProfiles = pgTable("company_profiles", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id).notNull().unique(),
+  companyName: text("company_name").notNull(),
+  logo: text("logo_path"),
+  description: text("description"),
+  website: text("website"),
+  industry: text("industry"),
+  employeeCount: text("employee_count"),
+  foundedYear: integer("founded_year"),
+  headquarters: text("headquarters"),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 export const documents = pgTable("documents", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
@@ -126,12 +140,21 @@ export const taskRelations = relations(tasks, ({ one }) => ({
 }));
 
 // User relations
-export const userRelations = relations(users, ({ many }) => ({
+export const userRelations = relations(users, ({ one, many }) => ({
+  companyProfile: one(companyProfiles),
   assignedTasks: many(tasks, { relationName: "assignee" }),
   createdTasks: many(tasks, { relationName: "assigner" }),
   uploadedFiles: many(files),
   createdDocuments: many(documents),
   documentMessages: many(documentMessages),
+}));
+
+// Add company profile relations
+export const companyProfileRelations = relations(companyProfiles, ({ one }) => ({
+  user: one(users, {
+    fields: [companyProfiles.userId],
+    references: [users.id],
+  }),
 }));
 
 // Schemas for input validation
@@ -157,6 +180,18 @@ export const updateTaskSchema = createTaskSchema.partial().extend({
   status: z.enum(["pending", "in_progress", "completed", "cancelled"]).optional(),
 });
 
+// Add company profile schemas
+export const updateCompanyProfileSchema = z.object({
+  companyName: z.string().min(1, "Company name is required"),
+  description: z.string().optional(),
+  website: z.string().url("Invalid website URL").optional(),
+  industry: z.string().optional(),
+  employeeCount: z.string().optional(),
+  foundedYear: z.number().min(1800).max(new Date().getFullYear()).optional(),
+  headquarters: z.string().optional(),
+});
+
+
 // Types
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
@@ -171,6 +206,8 @@ export type NewTask = typeof tasks.$inferInsert;
 export type File = typeof files.$inferSelect;
 export type NewFile = typeof files.$inferInsert;
 export type LoginInput = z.infer<typeof loginSchema>;
+export type CompanyProfile = typeof companyProfiles.$inferSelect;
+export type NewCompanyProfile = typeof companyProfiles.$inferInsert;
 
 // Insert/Select schemas
 export const insertUserSchema = createInsertSchema(users);
@@ -179,3 +216,5 @@ export const insertDocumentSchema = createInsertSchema(documents);
 export const selectDocumentSchema = createSelectSchema(documents);
 export const insertFileSchema = createInsertSchema(files);
 export const selectFileSchema = createSelectSchema(files);
+export const insertCompanyProfileSchema = createInsertSchema(companyProfiles);
+export const selectCompanyProfileSchema = createSelectSchema(companyProfiles);

@@ -3,10 +3,10 @@ import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { setupWebSocket } from "./websocket";
 import { db } from "@db";
-import { tasks, users, files } from "@db/schema";
+import { tasks, users, files, companyProfiles } from "@db/schema";
 import { eq, desc, or, asc } from "drizzle-orm";
 import { errorHandler, apiErrorLogger } from "./error-handler";
-import { createTaskSchema, updateTaskSchema } from "@db/schema";
+import { createTaskSchema, updateTaskSchema, updateCompanyProfileSchema } from "@db/schema";
 import { sql } from "drizzle-orm";
 import { generateThumbnail } from './services/thumbnail';
 import path from 'path';
@@ -37,6 +37,132 @@ export function registerRoutes(app: Express): Server {
 
   // Add error logging middleware
   app.use(apiErrorLogger);
+
+  // Company Profile Routes
+  app.get("/api/company-profile", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ error: "Not authenticated" });
+    }
+
+    try {
+      const [profile] = await db.query.companyProfiles.findMany({
+        where: eq(companyProfiles.userId, req.user.id),
+        limit: 1,
+      });
+
+      res.json(profile || null);
+    } catch (error) {
+      console.error("Error fetching company profile:", error);
+      res.status(500).json({ error: "Failed to fetch company profile" });
+    }
+  });
+
+  app.post("/api/company-profile/logo", upload.single('logo'), async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ error: "Not authenticated" });
+    }
+
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "No file uploaded" });
+      }
+
+      const [profile] = await db.query.companyProfiles.findMany({
+        where: eq(companyProfiles.userId, req.user.id),
+        limit: 1,
+      });
+
+      // Delete old logo if it exists
+      if (profile?.logo) {
+        try {
+          await fs.unlink(profile.logo);
+        } catch (err) {
+          console.error("Error deleting old logo:", err);
+        }
+      }
+
+      // Update or create company profile with new logo
+      if (profile) {
+        await db.update(companyProfiles)
+          .set({ logo: req.file.path })
+          .where(eq(companyProfiles.id, profile.id));
+      } else {
+        await db.insert(companyProfiles)
+          .values({
+            userId: req.user.id,
+            companyName: req.user.companyName,
+            logo: req.file.path,
+          });
+      }
+
+      res.json({ message: "Logo uploaded successfully" });
+    } catch (error) {
+      console.error("Error uploading logo:", error);
+      res.status(500).json({ error: "Failed to upload logo" });
+    }
+  });
+
+  app.put("/api/company-profile", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ error: "Not authenticated" });
+    }
+
+    try {
+      const result = updateCompanyProfileSchema.safeParse(req.body);
+      if (!result.success) {
+        return res.status(400).json({ 
+          error: "Invalid input: " + result.error.issues.map(i => i.message).join(", ") 
+        });
+      }
+
+      const [profile] = await db.query.companyProfiles.findMany({
+        where: eq(companyProfiles.userId, req.user.id),
+        limit: 1,
+      });
+
+      if (profile) {
+        const [updated] = await db.update(companyProfiles)
+          .set({ ...result.data, updatedAt: new Date() })
+          .where(eq(companyProfiles.id, profile.id))
+          .returning();
+        res.json(updated);
+      } else {
+        const [created] = await db.insert(companyProfiles)
+          .values({
+            userId: req.user.id,
+            ...result.data,
+          })
+          .returning();
+        res.json(created);
+      }
+    } catch (error) {
+      console.error("Error updating company profile:", error);
+      res.status(500).json({ error: "Failed to update company profile" });
+    }
+  });
+
+  // Serve company logo
+  app.get("/api/company-profile/logo/:id", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ error: "Not authenticated" });
+    }
+
+    try {
+      const [profile] = await db.query.companyProfiles.findMany({
+        where: eq(companyProfiles.id, parseInt(req.params.id)),
+        limit: 1,
+      });
+
+      if (!profile || !profile.logo) {
+        return res.status(404).json({ error: "Logo not found" });
+      }
+
+      res.sendFile(profile.logo);
+    } catch (error) {
+      console.error("Error serving logo:", error);
+      res.status(500).json({ error: "Failed to serve logo" });
+    }
+  });
 
   // Admin Routes
   app.get("/api/admin/users", async (req, res) => {
