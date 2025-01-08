@@ -23,7 +23,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
-import { Search, Loader2, Shield, Image, Files, Calendar } from "lucide-react";
+import { Search, Loader2, Shield, Image, Files, Calendar, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
   Dialog,
@@ -39,6 +39,16 @@ import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { format } from "date-fns";
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink } from "@/components/ui/breadcrumb";
 import { Badge } from "@/components/ui/badge";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 type FileWithUploader = File & {
   uploader: User;
@@ -106,6 +116,7 @@ export default function AdminPage() {
     field: "uploadedAt" | "fileName" | "fileSize";
     order: "asc" | "desc";
   }>({ field: "uploadedAt", order: "desc" });
+  const [fileToDelete, setFileToDelete] = useState<FileWithUploader | null>(null);
 
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -126,9 +137,9 @@ export default function AdminPage() {
   });
 
   const updateUserMutation = useMutation({
-    mutationFn: async ({ id, role, active, username, companyName }: { 
-      id: number; 
-      role: string; 
+    mutationFn: async ({ id, role, active, username, companyName }: {
+      id: number;
+      role: string;
       active: boolean;
       username?: string;
       companyName?: string;
@@ -162,6 +173,37 @@ export default function AdminPage() {
       });
     },
   });
+
+  const deleteFileMutation = useMutation({
+    mutationFn: async (fileId: number) => {
+      const response = await fetch(`/api/admin/files/${fileId}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        throw new Error(await response.text());
+      }
+
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/files"] });
+      toast({
+        title: "Success",
+        description: "File deleted successfully",
+      });
+      setFileToDelete(null);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
 
   // Redirect if not admin
   if (user?.role !== "admin") {
@@ -433,6 +475,7 @@ export default function AdminPage() {
                           <TableHead>Company</TableHead>
                           <TableHead>Upload Date</TableHead>
                           <TableHead>Status</TableHead>
+                          <TableHead>Actions</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -469,6 +512,19 @@ export default function AdminPage() {
                               }`}>
                                 {file.isArchived ? "Archived" : "Active"}
                               </span>
+                            </TableCell>
+                            <TableCell>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-red-600 hover:text-red-800"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setFileToDelete(file);
+                                }}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
                             </TableCell>
                           </TableRow>
                         ))}
@@ -592,7 +648,7 @@ export default function AdminPage() {
               </Select>
             </div>
 
-            <Button 
+            <Button
               className="w-full"
               onClick={() => {
                 if (selectedUser) {
@@ -792,6 +848,36 @@ export default function AdminPage() {
           </div>
         </DialogContent>
       </Dialog>
+      <AlertDialog open={!!fileToDelete} onOpenChange={() => setFileToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete File</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{fileToDelete?.fileName}"? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700"
+              onClick={() => {
+                if (fileToDelete) {
+                  deleteFileMutation.mutate(fileToDelete.id);
+                }
+              }}
+            >
+              {deleteFileMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                'Delete'
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

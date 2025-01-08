@@ -359,6 +359,51 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Add delete file endpoint
+  app.delete("/api/admin/files/:id", async (req, res) => {
+    if (!req.isAuthenticated() || req.user.role !== "admin") {
+      return res.status(403).json({ error: "Not authorized" });
+    }
+
+    try {
+      const { id } = req.params;
+      const [file] = await db.select()
+        .from(files)
+        .where(eq(files.id, parseInt(id)))
+        .limit(1);
+
+      if (!file) {
+        return res.status(404).json({ error: "File not found" });
+      }
+
+      // Delete the actual file and thumbnail
+      if (file.path) {
+        try {
+          await fs.unlink(file.path);
+        } catch (err) {
+          console.error("Error deleting file:", err);
+        }
+      }
+
+      if (file.thumbnailPath) {
+        try {
+          await fs.unlink(file.thumbnailPath);
+        } catch (err) {
+          console.error("Error deleting thumbnail:", err);
+        }
+      }
+
+      // Delete the database record
+      await db.delete(files)
+        .where(eq(files.id, parseInt(id)));
+
+      res.json({ message: "File deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting file:", error);
+      res.status(500).json({ error: "Failed to delete file" });
+    }
+  });
+
   const httpServer = createServer(app);
   setupWebSocket(httpServer);
 
