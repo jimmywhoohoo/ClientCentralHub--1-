@@ -158,7 +158,7 @@ export function TaskDashboard() {
 
       if (ws?.readyState === WebSocket.OPEN) {
         const message = {
-          type: 'task_update',
+          type: 'task_update' as const,
           taskId: task.id,
           changes: {
             status: task.status,
@@ -269,11 +269,13 @@ export function TaskDashboard() {
     if (updateTaskMutation.isPending) return;
 
     const newStatus = task.status === 'completed' ? 'pending' : 'completed';
+    const now = new Date().toISOString();
+
     updateTaskMutation.mutate({
       ...task,
       status: newStatus,
-      completedAt: newStatus === 'completed' ? new Date().toISOString() : null,
-      updatedAt: new Date().toISOString()
+      completedAt: newStatus === 'completed' ? now : null,
+      updatedAt: now
     });
   };
 

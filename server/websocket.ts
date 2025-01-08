@@ -16,7 +16,7 @@ interface TaskUpdate {
   type: 'task_update';
   taskId: number;
   changes: {
-    status: string;
+    status: 'pending' | 'completed' | 'in_progress' | 'cancelled';
     completedAt: string | null;
     updatedAt: string;
   };
@@ -26,7 +26,6 @@ interface TaskUpdate {
 type Message = TaskUpdate;
 
 function validateTaskUpdate(currentStatus: string, newStatus: string): { isValid: boolean; message?: string } {
-  // Define valid task status transitions
   const validTransitions: Record<string, string[]> = {
     'pending': ['in_progress', 'completed', 'cancelled'],
     'in_progress': ['completed', 'cancelled', 'pending'],
@@ -52,7 +51,6 @@ export function setupWebSocket(server: Server) {
   const wss = new WebSocketServer({ 
     server,
     verifyClient: (info: any) => {
-      // Skip Vite HMR WebSocket connections
       return !info.req.headers['sec-websocket-protocol']?.includes('vite-hmr');
     }
   });
