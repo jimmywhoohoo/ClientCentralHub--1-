@@ -272,6 +272,54 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Add these routes before the Notification Routes section
+  app.get("/api/admin/users/:userId/tasks/stats", async (req, res) => {
+    if (!req.isAuthenticated() || req.user.role !== "admin") {
+      return res.status(403).json({ error: "Not authorized" });
+    }
+
+    try {
+      const { userId } = req.params;
+      const now = new Date();
+
+      const [stats] = await db.select({
+        pending: sql<number>`COUNT(*) FILTER (WHERE ${tasks.status} = 'pending')`,
+        completed: sql<number>`COUNT(*) FILTER (WHERE ${tasks.status} = 'completed')`,
+        overdue: sql<number>`COUNT(*) FILTER (WHERE ${tasks.status} = 'pending' AND ${tasks.deadline} < ${now})`,
+      })
+        .from(tasks)
+        .where(eq(tasks.assignedTo, parseInt(userId)));
+
+      res.json(stats);
+    } catch (error) {
+      console.error("Error fetching user task stats:", error);
+      res.status(500).json({ error: "Failed to fetch user task stats" });
+    }
+  });
+
+  app.get("/api/admin/users/:userId/tasks", async (req, res) => {
+    if (!req.isAuthenticated() || req.user.role !== "admin") {
+      return res.status(403).json({ error: "Not authorized" });
+    }
+
+    try {
+      const { userId } = req.params;
+      const userTasks = await db.query.tasks.findMany({
+        where: eq(tasks.assignedTo, parseInt(userId)),
+        orderBy: [desc(tasks.updatedAt)],
+        with: {
+          assignee: true,
+          assigner: true,
+        },
+      });
+
+      res.json(userTasks);
+    } catch (error) {
+      console.error("Error fetching user tasks:", error);
+      res.status(500).json({ error: "Failed to fetch user tasks" });
+    }
+  });
+
   // Get files for a specific user
   app.get("/api/admin/users/:userId/files", async (req, res) => {
     if (!req.isAuthenticated() || req.user.role !== "admin") {

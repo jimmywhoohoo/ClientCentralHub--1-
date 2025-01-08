@@ -51,6 +51,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { TaskDashboard } from "../components/Dashboard/TaskDashboard";
 import { FileShareDialog } from "../components/Dashboard/FileShareDialog";
+import { UserTaskDetails } from "../components/Dashboard/UserTaskDetails";
 
 type FileWithUploader = File & {
   uploader: User;
@@ -141,6 +142,7 @@ export default function AdminPage() {
   });
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
   const [fileToShare, setFileToShare] = useState<FileWithUploader | null>(null);
+  const [selectedUserTasks, setSelectedUserTasks] = useState<User | null>(null);
 
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -427,7 +429,7 @@ export default function AdminPage() {
                               <Button
                                 variant="link"
                                 className="p-0 h-auto font-medium"
-                                onClick={() => setSelectedUserFiles(user)}
+                                onClick={() => setSelectedUserTasks(user)}
                               >
                                 {user.username}
                               </Button>
@@ -953,10 +955,10 @@ export default function AdminPage() {
                   </div>
                   <div>
                     <dt className="text-sm text-muted-foreground">Company</dt>
-                    <dd>{selectedFile?.uploader.companyNamedd}</dd>
+                    <dd>{selectedFile?.uploader.companyName}</dd>
                   </div>
                   <div>
-                    <dt className="text-sm text-muted-foreground">Status</dt>
+                    <dt className="textsm text-muted-foreground">Status</dt>
                     <dd>                    <Badge variant={selectedFile?.isArchived ? "secondary" : "default"}>
                       {selectedFile?.isArchived ? "Archived" : "Active"}
                     </Badge>
@@ -1035,6 +1037,11 @@ export default function AdminPage() {
         users={data?.users || []}
         open={!!fileToShare}
         onOpenChange={(open) => !open && setFileToShare(null)}
+      />
+      <UserTaskDetails 
+        user={selectedUserTasks}
+        open={!!selectedUserTasks}
+        onOpenChange={(open) => !open && setSelectedUserTasks(null)}
       />
     </div>
   );
