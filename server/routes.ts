@@ -938,7 +938,7 @@ export function registerRoutes(app: Express): Server {
   // Notification Routes
   app.get("/api/notifications", async (req, res) => {
     if (!req.isAuthenticated()) {
-      return      return res.status(401).json({ error: "Not authenticated" });
+      return res.status(401).json({ error: "Not authenticated" });
     }
 
     try {
