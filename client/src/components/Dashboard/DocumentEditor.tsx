@@ -2,11 +2,17 @@ import { useEffect, useState } from "react";
 import { useUser } from "@/hooks/use-user";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader2, Save, Users, History } from "lucide-react";
+import { Loader2, Save, Users, History, MessageCircle } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Document, DocumentVersion } from "@db/schema";
+import { ChatSidebar } from "./ChatSidebar";
+import {
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+} from "@/components/ui/resizable";
 
 interface DocumentEditorProps {
   document: Document;
@@ -31,6 +37,8 @@ export function DocumentEditor({ document, onSave, isLoading }: DocumentEditorPr
   const [versions, setVersions] = useState<DocumentVersion[]>([]);
   const [isLoadingVersions, setIsLoadingVersions] = useState(false);
   const [commitMessage, setCommitMessage] = useState("");
+  const [showChat, setShowChat] = useState(true);
+  const [defaultLayout, setDefaultLayout] = useState([70, 30]);
 
   useEffect(() => {
     // Fetch version history
@@ -149,59 +157,83 @@ export function DocumentEditor({ document, onSave, isLoading }: DocumentEditorPr
 
   return (
     <>
-      <Card className="min-h-[600px] flex flex-col">
-        <CardHeader className="flex-none">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-xl">{document.name}</CardTitle>
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
-                <Users className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm text-muted-foreground">
-                  {collaborators.length} active
-                </span>
+      <ResizablePanelGroup
+        direction="horizontal"
+        className="min-h-[600px] rounded-lg border"
+      >
+        <ResizablePanel defaultSize={defaultLayout[0]} minSize={30}>
+          <Card className="rounded-none border-0 h-full flex flex-col">
+            <CardHeader className="flex-none">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-xl">{document.name}</CardTitle>
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-2">
+                    <Users className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm text-muted-foreground">
+                      {collaborators.length} active
+                    </span>
+                  </div>
+                  <Button
+                    variant="outline"
+                    onClick={() => setIsHistoryOpen(true)}
+                  >
+                    <History className="h-4 w-4 mr-2" />
+                    History
+                  </Button>
+                  <Button onClick={handleSave} disabled={isSaving}>
+                    {isSaving ? (
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    ) : (
+                      <Save className="h-4 w-4 mr-2" />
+                    )}
+                    {isSaving ? 'Saving...' : 'Save'}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="md:hidden"
+                    onClick={() => setShowChat(!showChat)}
+                  >
+                    <MessageCircle className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
-              <Button
-                variant="outline"
-                onClick={() => setIsHistoryOpen(true)}
-              >
-                <History className="h-4 w-4 mr-2" />
-                History
-              </Button>
-              <Button onClick={handleSave} disabled={isSaving}>
-                {isSaving ? (
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                ) : (
-                  <Save className="h-4 w-4 mr-2" />
-                )}
-                {isSaving ? 'Saving...' : 'Save'}
-              </Button>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="flex-1 relative">
-          <textarea
-            className="w-full h-full min-h-[500px] p-4 bg-background resize-none focus:outline-none"
-            value={content}
-            onChange={handleContentChange}
-            placeholder="Start typing..."
+            </CardHeader>
+            <CardContent className="flex-1 relative p-0">
+              <textarea
+                className="w-full h-full min-h-[500px] p-4 bg-background resize-none focus:outline-none"
+                value={content}
+                onChange={handleContentChange}
+                placeholder="Start typing..."
+              />
+              {cursors.map((cursor) => (
+                <div
+                  key={cursor.userId}
+                  className="absolute pointer-events-none"
+                  style={{
+                    top: `${cursor.position.line * 1.5}em`,
+                    left: `${cursor.position.ch * 0.6}em`,
+                  }}
+                >
+                  <div className="w-0.5 h-5 bg-blue-500 animate-pulse" />
+                  <div className="px-2 py-1 text-xs bg-blue-500 text-white rounded mt-1">
+                    {cursor.username}
+                  </div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        </ResizablePanel>
+
+        <ResizableHandle />
+
+        <ResizablePanel defaultSize={defaultLayout[1]} minSize={20}>
+          <ChatSidebar
+            documentId={document.id}
+            collaborators={collaborators}
           />
-          {cursors.map((cursor) => (
-            <div
-              key={cursor.userId}
-              className="absolute pointer-events-none"
-              style={{
-                top: `${cursor.position.line * 1.5}em`,
-                left: `${cursor.position.ch * 0.6}em`,
-              }}
-            >
-              <div className="w-0.5 h-5 bg-blue-500 animate-pulse" />
-              <div className="px-2 py-1 text-xs bg-blue-500 text-white rounded mt-1">
-                {cursor.username}
-              </div>
-            </div>
-          ))}
-        </CardContent>
-      </Card>
+        </ResizablePanel>
+      </ResizablePanelGroup>
 
       <Dialog open={isHistoryOpen} onOpenChange={setIsHistoryOpen}>
         <DialogContent className="max-w-2xl">
@@ -259,20 +291,20 @@ export function DocumentEditor({ document, onSave, isLoading }: DocumentEditorPr
 }
 
 const restoreVersion = async (versionId: number) => {
-    try {
-      const response = await fetch(`/api/documents/${document.id}/versions/${versionId}/restore`, {
-        method: 'POST',
-        credentials: 'include',
-      });
+  try {
+    const response = await fetch(`/api/documents/${document.id}/versions/${versionId}/restore`, {
+      method: 'POST',
+      credentials: 'include',
+    });
 
-      if (!response.ok) {
-        throw new Error('Failed to restore version');
-      }
-
-      const restoredContent = await response.json();
-      setContent(restoredContent.content);
-      setIsHistoryOpen(false);
-    } catch (error) {
-      console.error('Error restoring version:', error);
+    if (!response.ok) {
+      throw new Error('Failed to restore version');
     }
-  };
+
+    const restoredContent = await response.json();
+    setContent(restoredContent.content);
+    setIsHistoryOpen(false);
+  } catch (error) {
+    console.error('Error restoring version:', error);
+  }
+};

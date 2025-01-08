@@ -16,6 +16,34 @@ export const users = pgTable("users", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+export const documents = pgTable("documents", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  content: text("content").notNull(),
+  createdBy: integer("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  isArchived: boolean("is_archived").default(false),
+});
+
+export const documentMessages = pgTable("document_messages", {
+  id: serial("id").primaryKey(),
+  documentId: integer("document_id").references(() => documents.id).notNull(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  content: text("content").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const documentVersions = pgTable("document_versions", {
+  id: serial("id").primaryKey(),
+  documentId: integer("document_id").references(() => documents.id).notNull(),
+  versionNumber: integer("version_number").notNull(),
+  content: text("content").notNull(),
+  commitMessage: text("commit_message"),
+  createdBy: integer("created_by").references(() => users.id).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 export const files = pgTable("files", {
   id: serial("id").primaryKey(),
   fileName: text("file_name").notNull(),
@@ -28,14 +56,6 @@ export const files = pgTable("files", {
   description: text("description"),
   isArchived: boolean("is_archived").default(false),
 });
-
-// File relations
-export const fileRelations = relations(files, ({ one }) => ({
-  uploader: one(users, {
-    fields: [files.uploadedBy],
-    references: [users.id],
-  }),
-}));
 
 export const tasks = pgTable("tasks", {
   id: serial("id").primaryKey(),
@@ -51,6 +71,48 @@ export const tasks = pgTable("tasks", {
   completedAt: timestamp("completed_at"),
 });
 
+// Document relations
+export const documentRelations = relations(documents, ({ one, many }) => ({
+  creator: one(users, {
+    fields: [documents.createdBy],
+    references: [users.id],
+  }),
+  messages: many(documentMessages),
+  versions: many(documentVersions),
+}));
+
+// Document messages relations
+export const documentMessageRelations = relations(documentMessages, ({ one }) => ({
+  document: one(documents, {
+    fields: [documentMessages.documentId],
+    references: [documents.id],
+  }),
+  user: one(users, {
+    fields: [documentMessages.userId],
+    references: [users.id],
+  }),
+}));
+
+// Document versions relations
+export const documentVersionRelations = relations(documentVersions, ({ one }) => ({
+  document: one(documents, {
+    fields: [documentVersions.documentId],
+    references: [documents.id],
+  }),
+  creator: one(users, {
+    fields: [documentVersions.createdBy],
+    references: [users.id],
+  }),
+}));
+
+// File relations
+export const fileRelations = relations(files, ({ one }) => ({
+  uploader: one(users, {
+    fields: [files.uploadedBy],
+    references: [users.id],
+  }),
+}));
+
 // Task relations
 export const taskRelations = relations(tasks, ({ one }) => ({
   assignee: one(users, {
@@ -63,16 +125,24 @@ export const taskRelations = relations(tasks, ({ one }) => ({
   }),
 }));
 
-// User relations with files and tasks
+// User relations
 export const userRelations = relations(users, ({ many }) => ({
   assignedTasks: many(tasks, { relationName: "assignee" }),
   createdTasks: many(tasks, { relationName: "assigner" }),
   uploadedFiles: many(files),
+  createdDocuments: many(documents),
+  documentMessages: many(documentMessages),
 }));
 
+// Schemas for input validation
 export const loginSchema = z.object({
   username: z.string().min(1, "Username is required"),
   password: z.string().min(1, "Password is required"),
+});
+
+export const createDocumentSchema = z.object({
+  name: z.string().min(1, "Name is required"),
+  content: z.string(),
 });
 
 export const createTaskSchema = z.object({
@@ -80,22 +150,32 @@ export const createTaskSchema = z.object({
   description: z.string().optional(),
   priority: z.enum(["low", "medium", "high"]),
   assignedTo: z.number(),
-  deadline: z.string().optional(), // Accept string from frontend
+  deadline: z.string().optional(),
 });
 
 export const updateTaskSchema = createTaskSchema.partial().extend({
   status: z.enum(["pending", "in_progress", "completed", "cancelled"]).optional(),
 });
 
+// Types
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
+export type Document = typeof documents.$inferSelect;
+export type NewDocument = typeof documents.$inferInsert;
+export type DocumentMessage = typeof documentMessages.$inferSelect;
+export type NewDocumentMessage = typeof documentMessages.$inferInsert;
+export type DocumentVersion = typeof documentVersions.$inferSelect;
+export type NewDocumentVersion = typeof documentVersions.$inferInsert;
 export type Task = typeof tasks.$inferSelect;
 export type NewTask = typeof tasks.$inferInsert;
-export type LoginInput = z.infer<typeof loginSchema>;
 export type File = typeof files.$inferSelect;
 export type NewFile = typeof files.$inferInsert;
+export type LoginInput = z.infer<typeof loginSchema>;
 
+// Insert/Select schemas
 export const insertUserSchema = createInsertSchema(users);
 export const selectUserSchema = createSelectSchema(users);
+export const insertDocumentSchema = createInsertSchema(documents);
+export const selectDocumentSchema = createSelectSchema(documents);
 export const insertFileSchema = createInsertSchema(files);
 export const selectFileSchema = createSelectSchema(files);
