@@ -17,9 +17,6 @@ const crypto = {
     return `${buf.toString("hex")}.${salt}`;
   },
   compare: async (suppliedPassword: string, storedPassword: string) => {
-    if (suppliedPassword === storedPassword) {
-      return true; // Special case for admin initial password
-    }
     const [hashedPassword, salt] = storedPassword.split(".");
     const hashedPasswordBuf = Buffer.from(hashedPassword, "hex");
     const suppliedPasswordBuf = (await scryptAsync(
@@ -45,7 +42,7 @@ export function setupAuth(app: Express) {
     saveUninitialized: false,
     cookie: {},
     store: new MemoryStore({
-      checkPeriod: 86400000,
+      checkPeriod: 86400000, // prune expired entries every 24h
     }),
   };
 
@@ -106,7 +103,7 @@ export function setupAuth(app: Express) {
       if (!result.success) {
         return res
           .status(400)
-          .send("Invalid input: " + result.error.issues.map(i => i.message).join(", "));
+          .json({ error: result.error.issues.map(i => i.message).join(", ") });
       }
 
       const { username, password, email, fullName, companyName, address } = result.data;
@@ -118,7 +115,7 @@ export function setupAuth(app: Express) {
         .limit(1);
 
       if (existingUser) {
-        return res.status(400).send("Username already exists");
+        return res.status(400).json({ error: "Username already exists" });
       }
 
       const hashedPassword = await crypto.hash(password);
@@ -141,12 +138,9 @@ export function setupAuth(app: Express) {
           return next(err);
         }
         return res.json({
+          ok: true,
           message: "Registration successful",
-          user: { 
-            id: newUser.id, 
-            username: newUser.username,
-            role: newUser.role 
-          },
+          user: newUser
         });
       });
     } catch (error) {
@@ -159,7 +153,7 @@ export function setupAuth(app: Express) {
     if (!result.success) {
       return res
         .status(400)
-        .send("Invalid input: " + result.error.issues.map(i => i.message).join(", "));
+        .json({ error: result.error.issues.map(i => i.message).join(", ") });
     }
 
     passport.authenticate("local", (err: any, user: Express.User, info: IVerifyOptions) => {
@@ -168,7 +162,7 @@ export function setupAuth(app: Express) {
       }
 
       if (!user) {
-        return res.status(400).send(info.message ?? "Login failed");
+        return res.status(400).json({ error: info.message ?? "Login failed" });
       }
 
       req.logIn(user, (err) => {
@@ -179,15 +173,7 @@ export function setupAuth(app: Express) {
         return res.json({
           ok: true,
           message: "Login successful",
-          user: {
-            id: user.id,
-            username: user.username,
-            email: user.email,
-            fullName: user.fullName,
-            companyName: user.companyName,
-            address: user.address,
-            role: user.role,
-          },
+          user
         });
       });
     })(req, res, next);
@@ -196,9 +182,9 @@ export function setupAuth(app: Express) {
   app.post("/api/logout", (req, res) => {
     req.logout((err) => {
       if (err) {
-        return res.status(500).send("Logout failed");
+        return res.status(500).json({ error: "Logout failed" });
       }
-      res.json({ message: "Logout successful" });
+      res.json({ ok: true, message: "Logout successful" });
     });
   });
 
@@ -206,6 +192,6 @@ export function setupAuth(app: Express) {
     if (req.isAuthenticated()) {
       return res.json(req.user);
     }
-    res.status(401).send("Not logged in");
+    res.status(401).json({ error: "Not logged in" });
   });
 }

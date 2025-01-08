@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { User, NewUser } from "@db/schema";
 import { useToast } from './use-toast';
+import { useLocation } from 'wouter';
 
 type RequestResult = {
   ok: true;
@@ -42,6 +43,7 @@ async function handleRequest(
 export function useUser() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
 
   const { data: user, error, isLoading } = useQuery<User>({
     queryKey: ['/api/user'],
@@ -72,6 +74,7 @@ export function useUser() {
           title: "Success",
           description: data.message,
         });
+        setLocation('/');
       } else {
         toast({
           title: "Error",
@@ -92,6 +95,7 @@ export function useUser() {
           title: "Success",
           description: data.message,
         });
+        setLocation('/');
       } else {
         toast({
           title: "Error",
@@ -107,10 +111,12 @@ export function useUser() {
     onSuccess: (data) => {
       if (data.ok) {
         queryClient.setQueryData(['/api/user'], null);
+        queryClient.invalidateQueries({ queryKey: ['/api/user'] });
         toast({
           title: "Success",
           description: data.message,
         });
+        setLocation('/auth');
       } else {
         toast({
           title: "Error",

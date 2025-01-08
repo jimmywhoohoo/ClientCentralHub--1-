@@ -57,7 +57,7 @@ export const createTaskSchema = z.object({
   description: z.string().optional(),
   priority: z.enum(["low", "medium", "high"]),
   assignedTo: z.number(),
-  deadline: z.string().optional(),
+  deadline: z.string().optional(), // Accept string from frontend
 });
 
 export const updateTaskSchema = createTaskSchema.partial().extend({

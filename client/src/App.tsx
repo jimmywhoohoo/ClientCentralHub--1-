@@ -4,13 +4,20 @@ import { Toaster } from "@/components/ui/toaster";
 import AuthPage from "./pages/AuthPage";
 import DashboardPage from "./pages/DashboardPage";
 import SettingsPage from "./pages/SettingsPage";
+import AdminPage from "./pages/AdminPage";
 import { useUser } from "./hooks/use-user";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import { useEffect } from "react";
 
-// Protected route wrapper component
 function ProtectedRoute({ component: Component }: { component: React.ComponentType }) {
   const { user, isLoading } = useUser();
-  const [, setLocation] = useLocation();
+  const [, navigate] = useLocation();
+
+  useEffect(() => {
+    if (!isLoading && !user) {
+      navigate("/auth");
+    }
+  }, [user, isLoading, navigate]);
 
   if (isLoading) {
     return (
@@ -21,7 +28,6 @@ function ProtectedRoute({ component: Component }: { component: React.ComponentTy
   }
 
   if (!user) {
-    setLocation("/auth");
     return null;
   }
 
@@ -29,7 +35,7 @@ function ProtectedRoute({ component: Component }: { component: React.ComponentTy
 }
 
 function App() {
-  const { user, isLoading, error } = useUser();
+  const { user, isLoading } = useUser();
 
   if (isLoading) {
     return (
@@ -39,24 +45,23 @@ function App() {
     );
   }
 
-  if (error) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-destructive">Error: {error.message}</div>
-      </div>
-    );
-  }
-
   return (
     <Switch>
-      <Route path="/auth" component={AuthPage} />
+      <Route path="/auth">
+        {user ? (() => {
+          window.location.href = "/";
+          return null;
+        })() : <AuthPage />}
+      </Route>
       <Route path="/settings">
         <ProtectedRoute component={SettingsPage} />
+      </Route>
+      <Route path="/admin">
+        <ProtectedRoute component={AdminPage} />
       </Route>
       <Route path="/">
         <ProtectedRoute component={DashboardPage} />
       </Route>
-      <Route>404 Not Found</Route>
     </Switch>
   );
 }
