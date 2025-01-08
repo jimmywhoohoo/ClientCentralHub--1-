@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 import type { Task, User } from "@db/schema";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Clock, CheckCircle2, AlertCircle, Plus } from "lucide-react";
+import { Clock, CheckCircle2, AlertCircle, Plus, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -42,6 +42,16 @@ interface NewTask {
   deadline: string;
 }
 
+type PaginatedResponse = {
+  users: User[];
+  pagination: {
+    total: number;
+    page: number;
+    limit: number;
+    pages: number;
+  };
+};
+
 export function TaskDashboard() {
   const [showNewTaskDialog, setShowNewTaskDialog] = useState(false);
   const [newTask, setNewTask] = useState<NewTask>({
@@ -58,7 +68,7 @@ export function TaskDashboard() {
     queryKey: ['/api/tasks/stats'],
   });
 
-  const { data: users } = useQuery<User[]>({
+  const { data: usersData } = useQuery<PaginatedResponse>({
     queryKey: ['/api/admin/users'],
   });
 
@@ -103,20 +113,24 @@ export function TaskDashboard() {
 
   if (isLoading) {
     return (
-      <div className="grid gap-4 grid-cols-1 md:grid-cols-3">
-        {[...Array(3)].map((_, i) => (
-          <Card key={i}>
-            <CardHeader>
-              <Skeleton className="h-6 w-32" />
-            </CardHeader>
-            <CardContent>
-              <Skeleton className="h-12 w-24" />
-            </CardContent>
-          </Card>
-        ))}
+      <div className="space-y-4">
+        <div className="grid gap-4 grid-cols-1 md:grid-cols-3">
+          {[...Array(3)].map((_, i) => (
+            <Card key={i}>
+              <CardHeader>
+                <Skeleton className="h-6 w-32" />
+              </CardHeader>
+              <CardContent>
+                <Skeleton className="h-12 w-24" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
       </div>
     );
   }
+
+  const clientUsers = usersData?.users.filter(user => user.role === "client") || [];
 
   return (
     <div className="space-y-4">
@@ -266,7 +280,7 @@ export function TaskDashboard() {
                   <SelectValue placeholder="Select a client" />
                 </SelectTrigger>
                 <SelectContent>
-                  {users?.filter(user => user.role === "client").map((user) => (
+                  {clientUsers.map((user) => (
                     <SelectItem key={user.id} value={String(user.id)}>
                       {user.fullName} ({user.companyName})
                     </SelectItem>
@@ -308,7 +322,14 @@ export function TaskDashboard() {
               onClick={() => createTaskMutation.mutate(newTask)}
               disabled={!newTask.title || !newTask.assignedTo || createTaskMutation.isPending}
             >
-              {createTaskMutation.isPending ? "Creating..." : "Create Task"}
+              {createTaskMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Creating...
+                </>
+              ) : (
+                "Create Task"
+              )}
             </Button>
           </div>
         </DialogContent>
