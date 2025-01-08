@@ -62,7 +62,11 @@ export function setupWebSocket(server: Server) {
       if (excludeClientId && clientId === excludeClientId) return;
 
       if (client.ws.readyState === WebSocket.OPEN) {
-        client.ws.send(JSON.stringify(message));
+        try {
+          client.ws.send(JSON.stringify(message));
+        } catch (err) {
+          console.error('Failed to broadcast to client:', err);
+        }
       }
     });
   };
@@ -71,81 +75,84 @@ export function setupWebSocket(server: Server) {
     const clientId = randomUUID();
 
     ws.on('message', async (data) => {
+      let parsedMessage: Message;
+
       try {
-        const message: Message = JSON.parse(data.toString());
-        const client = clients.get(clientId);
-
-        if (!client) return;
-
-        if (message.type === 'task_update' && message.taskId && message.changes) {
-          try {
-            // Fetch current task status
-            const [currentTask] = await db
-              .select()
-              .from(tasks)
-              .where(eq(tasks.id, message.taskId))
-              .limit(1);
-
-            if (!currentTask) {
-              ws.send(JSON.stringify({
-                type: 'error',
-                code: 'TASK_NOT_FOUND',
-                message: 'Task not found'
-              }));
-              return;
-            }
-
-            // Validate status transition
-            const validation = validateTaskUpdate(currentTask.status, message.changes.status);
-            if (!validation.isValid) {
-              ws.send(JSON.stringify({
-                type: 'error',
-                code: 'INVALID_STATUS_TRANSITION',
-                message: validation.message
-              }));
-              return;
-            }
-
-            // Update task in database
-            const [updatedTask] = await db
-              .update(tasks)
-              .set({
-                status: message.changes.status,
-                completedAt: message.changes.completedAt ? new Date(message.changes.completedAt) : null,
-                updatedAt: new Date(message.changes.updatedAt)
-              })
-              .where(eq(tasks.id, message.taskId))
-              .returning();
-
-            if (updatedTask) {
-              // Broadcast task update to all clients
-              broadcastToClients({
-                type: 'task_update',
-                task: updatedTask
-              }, clientId);
-
-              // Send success response to the originating client
-              ws.send(JSON.stringify({
-                type: 'task_update_success',
-                task: updatedTask
-              }));
-            }
-          } catch (error) {
-            console.error('Database update error:', error);
-            ws.send(JSON.stringify({
-              type: 'error',
-              code: 'DATABASE_ERROR',
-              message: 'Failed to update task in database'
-            }));
-          }
-        }
+        parsedMessage = JSON.parse(data.toString());
       } catch (error) {
-        console.error('WebSocket message error:', error);
+        console.error('Failed to parse WebSocket message:', error);
         ws.send(JSON.stringify({
           type: 'error',
           code: 'MESSAGE_PARSE_ERROR',
-          message: 'Failed to process message'
+          message: 'Invalid message format'
         }));
+        return;
+      }
+
+      const client = clients.get(clientId);
+      if (!client) return;
+
+      if (parsedMessage.type === 'task_update' && parsedMessage.taskId && parsedMessage.changes) {
+        try {
+          // Fetch current task status
+          const [currentTask] = await db
+            .select()
+            .from(tasks)
+            .where(eq(tasks.id, parsedMessage.taskId))
+            .limit(1);
+
+          if (!currentTask) {
+            ws.send(JSON.stringify({
+              type: 'error',
+              code: 'TASK_NOT_FOUND',
+              message: 'Task not found'
+            }));
+            return;
+          }
+
+          // Validate status transition
+          const validation = validateTaskUpdate(currentTask.status, parsedMessage.changes.status);
+          if (!validation.isValid) {
+            ws.send(JSON.stringify({
+              type: 'error',
+              code: 'INVALID_STATUS_TRANSITION',
+              message: validation.message
+            }));
+            return;
+          }
+
+          // Update task in database
+          const [updatedTask] = await db
+            .update(tasks)
+            .set({
+              status: parsedMessage.changes.status,
+              completedAt: parsedMessage.changes.completedAt ? new Date(parsedMessage.changes.completedAt) : null,
+              updatedAt: new Date(parsedMessage.changes.updatedAt)
+            })
+            .where(eq(tasks.id, parsedMessage.taskId))
+            .returning();
+
+          if (updatedTask) {
+            // Broadcast task update to all clients
+            broadcastToClients({
+              type: 'task_update',
+              task: updatedTask
+            }, clientId);
+
+            // Send success response to the originating client
+            ws.send(JSON.stringify({
+              type: 'task_update_success',
+              task: updatedTask
+            }));
+          }
+        } catch (error) {
+          console.error('Database update error:', error);
+          ws.send(JSON.stringify({
+            type: 'error',
+            code: 'DATABASE_ERROR',
+            message: 'Failed to update task in database'
+          }));
+        }
       }
     });
 
@@ -160,7 +167,6 @@ export function setupWebSocket(server: Server) {
         if (userId && username) {
           clients.set(clientId, { id: clientId, ws, userId, username });
 
-          // Send initial sync status
           ws.send(JSON.stringify({
             type: 'connected',
             message: 'Successfully connected to real-time updates'
