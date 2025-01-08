@@ -418,9 +418,12 @@ export function registerRoutes(app: Express): Server {
         });
       }
 
+      const { deadline, ...otherData } = result.data;
+
       const [task] = await db.insert(tasks)
         .values({
-          ...result.data,
+          ...otherData,
+          deadline: deadline ? new Date(deadline) : null,
           assignedBy: req.user.id,
           status: "pending",
           createdAt: new Date(),
