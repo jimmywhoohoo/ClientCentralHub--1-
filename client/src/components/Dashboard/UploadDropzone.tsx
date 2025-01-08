@@ -15,7 +15,7 @@ interface UploadDropzoneProps {
 export function UploadDropzone({ onUploadComplete }: UploadDropzoneProps) {
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
-  const [preview, setPreview] = useState<{ name: string; preview: string; file: File } | null>(null);
+  const [preview, setPreview] = useState<{ name: string; preview: string; file: File; uploadedAt?: Date } | null>(null);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const { toast } = useToast();
 
@@ -35,7 +35,6 @@ export function UploadDropzone({ onUploadComplete }: UploadDropzoneProps) {
         });
       }, 100);
 
-      // TODO: Implement actual file upload logic here with FormData
       const formData = new FormData();
       formData.append('file', file);
 
@@ -90,7 +89,8 @@ export function UploadDropzone({ onUploadComplete }: UploadDropzoneProps) {
         setPreview({
           name: file.name,
           preview: reader.result as string,
-          file
+          file,
+          uploadedAt: new Date()
         });
         setShowConfirmDialog(true);
       };
@@ -99,7 +99,8 @@ export function UploadDropzone({ onUploadComplete }: UploadDropzoneProps) {
       setPreview({
         name: file.name,
         preview: '',
-        file
+        file,
+        uploadedAt: new Date()
       });
       setShowConfirmDialog(true);
     }
@@ -192,6 +193,11 @@ export function UploadDropzone({ onUploadComplete }: UploadDropzoneProps) {
                 <p className="text-sm text-muted-foreground">
                   Size: {preview?.file && (preview.file.size / 1024 / 1024).toFixed(2)} MB
                 </p>
+                {preview?.uploadedAt && (
+                  <p className="text-sm text-muted-foreground">
+                    Upload time: {preview.uploadedAt.toLocaleTimeString()}
+                  </p>
+                )}
               </div>
             </div>
 
