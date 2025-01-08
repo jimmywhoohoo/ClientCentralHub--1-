@@ -5,9 +5,30 @@ import { setupWebSocket } from "./websocket";
 import { db } from "@db";
 import { documents, documentInteractions, documentCollaborators, users } from "@db/schema";
 import { and, eq, desc, sql } from "drizzle-orm";
+import fs from "fs/promises";
+import path from "path";
 
 export function registerRoutes(app: Express): Server {
   setupAuth(app);
+
+  // Theme customization
+  app.post("/api/theme", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).send("Not authenticated");
+    }
+
+    try {
+      const theme = req.body;
+      await fs.writeFile(
+        path.resolve(process.cwd(), "theme.json"),
+        JSON.stringify(theme, null, 2)
+      );
+      res.json({ message: "Theme updated successfully" });
+    } catch (error) {
+      console.error("Error updating theme:", error);
+      res.status(500).send("Failed to update theme");
+    }
+  });
 
   // Documents
   app.get("/api/documents", async (req, res) => {
