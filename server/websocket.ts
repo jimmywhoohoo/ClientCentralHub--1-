@@ -25,6 +25,29 @@ interface TaskUpdate {
 
 type Message = TaskUpdate;
 
+function validateTaskUpdate(currentStatus: string, newStatus: string): { isValid: boolean; message?: string } {
+  // Define valid task status transitions
+  const validTransitions: Record<string, string[]> = {
+    'pending': ['in_progress', 'completed', 'cancelled'],
+    'in_progress': ['completed', 'cancelled', 'pending'],
+    'completed': ['pending'],
+    'cancelled': ['pending']
+  };
+
+  if (!validTransitions[currentStatus]) {
+    return { isValid: false, message: `Invalid current status: ${currentStatus}` };
+  }
+
+  if (!validTransitions[currentStatus].includes(newStatus)) {
+    return { 
+      isValid: false, 
+      message: `Cannot change task status from '${currentStatus}' to '${newStatus}'. Valid transitions are: ${validTransitions[currentStatus].join(', ')}`
+    };
+  }
+
+  return { isValid: true };
+}
+
 export function setupWebSocket(server: Server) {
   const wss = new WebSocketServer({ 
     server,
@@ -58,6 +81,33 @@ export function setupWebSocket(server: Server) {
 
         if (message.type === 'task_update' && message.taskId && message.changes) {
           try {
+            // Fetch current task status
+            const [currentTask] = await db
+              .select()
+              .from(tasks)
+              .where(eq(tasks.id, message.taskId))
+              .limit(1);
+
+            if (!currentTask) {
+              ws.send(JSON.stringify({
+                type: 'error',
+                code: 'TASK_NOT_FOUND',
+                message: 'Task not found'
+              }));
+              return;
+            }
+
+            // Validate status transition
+            const validation = validateTaskUpdate(currentTask.status, message.changes.status);
+            if (!validation.isValid) {
+              ws.send(JSON.stringify({
+                type: 'error',
+                code: 'INVALID_STATUS_TRANSITION',
+                message: validation.message
+              }));
+              return;
+            }
+
             // Update task in database
             const [updatedTask] = await db
               .update(tasks)
@@ -86,6 +136,7 @@ export function setupWebSocket(server: Server) {
             console.error('Database update error:', error);
             ws.send(JSON.stringify({
               type: 'error',
+              code: 'DATABASE_ERROR',
               message: 'Failed to update task in database'
             }));
           }
@@ -94,6 +145,7 @@ export function setupWebSocket(server: Server) {
         console.error('WebSocket message error:', error);
         ws.send(JSON.stringify({
           type: 'error',
+          code: 'MESSAGE_PARSE_ERROR',
           message: 'Failed to process message'
         }));
       }

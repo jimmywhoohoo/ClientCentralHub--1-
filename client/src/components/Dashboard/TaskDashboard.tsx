@@ -105,13 +105,19 @@ export function TaskDashboard() {
     websocket.onmessage = (event) => {
       const data = JSON.parse(event.data);
 
-      if (data.type === 'CONNECTED') {
+      if (data.type === 'connected') {
         console.log('WebSocket Connected');
         setSyncStatus("synced");
-      } else if (data.type === 'task_update') { //Corrected casing here
-        // Invalidate queries to refetch data
+      } else if (data.type === 'task_update') {
         queryClient.invalidateQueries({ queryKey: ['/api/tasks/stats'] });
         setSyncStatus("synced");
+      } else if (data.type === 'error') {
+        setSyncStatus("error");
+        setTaskError({
+          type: 'validation',
+          message: data.message,
+          details: `Error Code: ${data.code}. ${getErrorDetails(data.code)}`,
+        });
       }
     };
 
@@ -283,6 +289,22 @@ export function TaskDashboard() {
     }
     setTaskError(null);
   };
+
+  const getErrorDetails = (code: string) => {
+    switch (code) {
+      case 'INVALID_STATUS_TRANSITION':
+        return 'Task status changes must follow a valid workflow. For example, a completed task can only be marked as pending.';
+      case 'TASK_NOT_FOUND':
+        return 'The task you are trying to update no longer exists. It may have been deleted.';
+      case 'DATABASE_ERROR':
+        return 'There was an error saving your changes. Please try again later.';
+      case 'MESSAGE_PARSE_ERROR':
+        return 'There was an error processing your request. Please refresh the page and try again.';
+      default:
+        return 'An unexpected error occurred. Please try again later.';
+    }
+  };
+
 
   if (isLoading) {
     return (
