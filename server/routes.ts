@@ -3,8 +3,8 @@ import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { setupWebSocket } from "./websocket";
 import { db } from "@db";
-import { tasks, users, files, companyProfiles, notificationPreferences, notifications, taskActivities } from "@db/schema";
-import { eq, desc, or, asc, and } from "drizzle-orm";
+import { tasks, users, files, companyProfiles, notificationPreferences, notifications, taskActivities, achievements, userAchievements, documentComments } from "@db/schema";
+import { eq, desc, or, asc, and, not, exists } from "drizzle-orm";
 import { errorHandler, apiErrorLogger } from "./error-handler";
 import { createTaskSchema, updateTaskSchema, updateCompanyProfileSchema, updateNotificationPreferencesSchema } from "@db/schema";
 import { sql } from "drizzle-orm";
@@ -745,6 +745,13 @@ export function registerRoutes(app: Express): Server {
       }
 
       const { deadline, ...otherData } = result.data;
+      const taskId = parseInt(req.params.id);
+
+      // Get the current task status
+      const [currentTask] = await db.select()
+        .from(tasks)
+        .where(eq(tasks.id, taskId))
+        .limit(1);
 
       const [task] = await db.update(tasks)
         .set({
@@ -753,11 +760,68 @@ export function registerRoutes(app: Express): Server {
           updatedAt: new Date(),
           ...(result.data.status === 'completed' ? { completedAt: new Date() } : {}),
         })
-        .where(eq(tasks.id, parseInt(req.params.id)))
+        .where(eq(tasks.id, taskId))
         .returning();
 
       if (!task) {
         return res.status(404).json({ error: "Task not found" });
+      }
+
+      // Check for achievements if task is completed
+      if (result.data.status === 'completed' && currentTask.status !== 'completed') {
+        // Get task-related achievements that user hasn't unlocked yet
+        const taskAchievements = await db.query.achievements.findMany({
+          where: and(
+            eq(achievements.category, 'tasks'),
+            not(
+              exists(
+                db.select()
+                  .from(userAchievements)
+                  .where(
+                    and(
+                      eq(userAchievements.userId, req.user.id),
+                      eq(userAchievements.achievementId, sql.placeholder('achievementId'))
+                    )
+                  )
+              )
+            )
+          ),
+        });
+
+        // Check each achievement's criteria
+        const completedTasks = await db
+          .select({ count: sql<number>`count(*)` })
+          .from(tasks)
+          .where(
+            and(
+              eq(tasks.assignedTo, req.user.id),
+              eq(tasks.status, "completed")
+            )
+          );
+
+        for (const achievement of taskAchievements) {
+          const criteria = achievement.criteria as Record<string, any>;
+          if (completedTasks[0].count >= criteria.tasksCompleted) {
+            // Unlock the achievement
+            await db.insert(userAchievements)
+              .values({
+                userId: req.user.id,
+                achievementId: achievement.id,
+                progress: {
+                  completedTasks: completedTasks[0].count,
+                },
+              });
+
+            // Create notification for achievement unlock
+            await db.insert(notifications)
+              .values({
+                userId: req.user.id,
+                type: "achievement_unlocked",
+                title: "New Achievement Unlocked!",
+                message: `You've earned the "${achievement.name}" achievement!`,
+              });
+          }
+        }
       }
 
       // Add task activity
@@ -835,6 +899,256 @@ export function registerRoutes(app: Express): Server {
     } catch (error) {
       console.error("Error marking notification as read:", error);
       res.status(500).json({ error: "Failed to mark notification as read" });
+    }
+  });
+
+  // Add achievement routes
+  app.get("/api/achievements", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ error: "Not authenticated" });
+    }
+
+    try {
+      // Get all achievements with user progress
+      const achievements = await db.query.achievements.findMany({
+        with: {
+          userAchievements: {
+            where: eq(userAchievements.userId, req.user.id),
+          },
+        },
+      });
+
+      // Calculate progress for each achievement
+      const achievementsWithProgress = await Promise.all(
+        achievements.map(async (achievement) => {
+          const userAchievement = achievement.userAchievements[0];
+          if (userAchievement) {
+            return {
+              ...achievement,
+              userAchievement,
+              progress: 100,
+            };
+          }
+
+          // Calculate progress based on achievement criteria
+          let progress = 0;
+          const criteria = achievement.criteria as Record<string, any>;
+
+          switch (achievement.category) {
+            case "tasks": {
+              const completedTasks = await db
+                .select({ count:sql<number>`count(*)` })
+                .from(tasks)
+                .where(
+                  and(
+                    eq(tasks.assignedTo, req.user.id),
+                    eq(tasks.status, "completed")
+                  )
+                );
+              progress = Math.min(
+                100,
+                (completedTasks[0].count / criteria.tasksCompleted) * 100
+              );
+              break;
+            }
+            case "collaboration": {
+              const totalComments = await db
+                .select({ count: sql<number>`count(*)` })
+                .from(documentComments)
+                .where(eq(documentComments.userId, req.user.id));
+              progress = Math.min(
+                100,
+                (totalComments[0].count / criteria.commentsPosted) * 100
+              );
+              break;
+            }
+            // Add more achievement categories as needed
+          }
+
+          return {
+            ...achievement,
+            progress: Math.round(progress),
+          };
+        })
+      );
+
+      res.json(achievementsWithProgress);
+    } catch (error) {
+      console.error("Error fetching achievements:", error);
+      res.status(500).json({ error: "Failed to fetch achievements" });
+    }
+  });
+
+  // Add achievement check middleware for task completion
+  app.put("/api/tasks/:id", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ error: "Not authenticated" });
+    }
+
+    try {
+      const result = updateTaskSchema.safeParse(req.body);
+      if (!result.success) {
+        return res.status(400).json({
+          error: "Invalid input: " + result.error.issues.map(i => i.message).join(", ")
+        });
+      }
+
+      const { deadline, ...otherData } = result.data;
+      const taskId = parseInt(req.params.id);
+
+      // Get the current task status
+      const [currentTask] = await db.select()
+        .from(tasks)
+        .where(eq(tasks.id, taskId))
+        .limit(1);
+
+      const [task] = await db.update(tasks)
+        .set({
+          ...otherData,
+          deadline: deadline ? new Date(deadline) : null,
+          updatedAt: new Date(),
+          ...(result.data.status === 'completed' ? { completedAt: new Date() } : {}),
+        })
+        .where(eq(tasks.id, taskId))
+        .returning();
+
+      if (!task) {
+        return res.status(404).json({ error: "Task not found" });
+      }
+
+      // Check for achievements if task is completed
+      if (result.data.status === 'completed' && currentTask.status !== 'completed') {
+        // Get task-related achievements that user hasn't unlocked yet
+        const taskAchievements = await db.query.achievements.findMany({
+          where: and(
+            eq(achievements.category, 'tasks'),
+            not(
+              exists(
+                db.select()
+                  .from(userAchievements)
+                  .where(
+                    and(
+                      eq(userAchievements.userId, req.user.id),
+                      eq(userAchievements.achievementId, sql.placeholder('achievementId'))
+                    )
+                  )
+              )
+            )
+          ),
+        });
+
+        // Check each achievement's criteria
+        const completedTasks = await db
+          .select({ count: sql<number>`count(*)` })
+          .from(tasks)
+          .where(
+            and(
+              eq(tasks.assignedTo, req.user.id),
+              eq(tasks.status, "completed")
+            )
+          );
+
+        for (const achievement of taskAchievements) {
+          const criteria = achievement.criteria as Record<string, any>;
+          if (completedTasks[0].count >= criteria.tasksCompleted) {
+            // Unlock the achievement
+            await db.insert(userAchievements)
+              .values({
+                userId: req.user.id,
+                achievementId: achievement.id,
+                progress: {
+                  completedTasks: completedTasks[0].count,
+                },
+              });
+
+            // Create notification for achievement unlock
+            await db.insert(notifications)
+              .values({
+                userId: req.user.id,
+                type: "achievement_unlocked",
+                title: "New Achievement Unlocked!",
+                message: `You've earned the "${achievement.name}" achievement!`,
+              });
+          }
+        }
+      }
+
+      // Add task activity
+      if (result.data.status) {
+        await db.insert(taskActivities).values({
+          taskId: task.id,
+          userId: req.user.id,
+          action: `changed status to ${result.data.status}`,
+        });
+      }
+
+      res.json(task);
+    } catch (error) {
+      console.error("Error updating task:", error);
+      res.status(500).json({ error: "Failed to update task" });
+    }
+  });
+
+  // Initialize default achievements if they don't exist
+  app.post("/api/admin/achievements/initialize", async (req, res) => {
+    if (!req.isAuthenticated() || req.user.role !== "admin") {
+      return res.status(403).json({ error: "Not authorized" });
+    }
+
+    try {
+      const defaultAchievements = [
+        {
+          name: "Task Master",
+          description: "Complete 10 tasks",
+          icon: "trophy",
+          category: "tasks",
+          criteria: { tasksCompleted: 10 },
+        },
+        {
+          name: "Productivity Pro",
+          description: "Complete 50 tasks",
+          icon: "star",
+          category: "tasks",
+          criteria: { tasksCompleted: 50 },
+        },
+        {
+          name: "Task Legend",
+          description: "Complete 100 tasks",
+          icon: "award",
+          category: "tasks",
+          criteria: { tasksCompleted: 100 },
+        },
+        {
+          name: "Team Player",
+          description: "Post 10 comments on documents",
+          icon: "users",
+          category: "collaboration",
+          criteria: { commentsPosted: 10 },
+        },
+        {
+          name: "Document Expert",
+          description: "Create or edit 20 documents",
+          icon: "file-text",
+          category: "documents",
+          criteria: { documentsCreated: 20 },
+        },
+      ];
+
+      for (const achievement of defaultAchievements) {
+        const [existing] = await db.select()
+          .from(achievements)
+          .where(eq(achievements.name, achievement.name))
+          .limit(1);
+
+        if (!existing) {
+          await db.insert(achievements).values(achievement);
+        }
+      }
+
+      res.json({ message: "Default achievements initialized successfully" });
+    } catch (error) {
+      console.error("Error initializing achievements:", error);
+      res.status(500).json({ error: "Failed to initialize achievements" });
     }
   });
 
