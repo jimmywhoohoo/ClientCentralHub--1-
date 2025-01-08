@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, boolean, timestamp, jsonb, varchar } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, jsonb, varchar, date } from "drizzle-orm/pg-core";
 import { createInsertSchema, createSelectSchema } from "drizzle-zod";
 import { relations } from "drizzle-orm";
 import { z } from "zod";
@@ -107,6 +107,24 @@ export const fileShares = pgTable("file_shares", {
   revoked: boolean("revoked").default(false),
 });
 
+export const achievements = pgTable("achievements", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  description: text("description").notNull(),
+  icon: text("icon").notNull(),
+  category: text("category").notNull(),
+  criteria: jsonb("criteria").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const userAchievements = pgTable("user_achievements", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  achievementId: integer("achievement_id").references(() => achievements.id).notNull(),
+  unlockedAt: timestamp("unlocked_at").defaultNow().notNull(),
+  progress: jsonb("progress"),
+});
+
 export const documentRelations = relations(documents, ({ one, many }) => ({
   creator: one(users, {
     fields: [documents.createdBy],
@@ -168,6 +186,7 @@ export const userRelations = relations(users, ({ one, many }) => ({
   createdDocuments: many(documents),
   documentMessages: many(documentMessages),
   documentComments: many(documentComments),
+  achievements: many(userAchievements),
 }));
 
 export const companyProfileRelations = relations(companyProfiles, ({ one }) => ({
@@ -205,6 +224,21 @@ export const fileShareRelations = relations(fileShares, ({ one }) => ({
   sharedByUser: one(users, {
     fields: [fileShares.sharedByUserId],
     references: [users.id],
+  }),
+}));
+
+export const achievementRelations = relations(achievements, ({ many }) => ({
+  userAchievements: many(userAchievements),
+}));
+
+export const userAchievementRelations = relations(userAchievements, ({ one }) => ({
+  user: one(users, {
+    fields: [userAchievements.userId],
+    references: [users.id],
+  }),
+  achievement: one(achievements, {
+    fields: [userAchievements.achievementId],
+    references: [achievements.id],
   }),
 }));
 
@@ -271,6 +305,10 @@ export type DocumentComment = typeof documentComments.$inferSelect;
 export type NewDocumentComment = typeof documentComments.$inferInsert;
 export type FileShare = typeof fileShares.$inferSelect;
 export type NewFileShare = typeof fileShares.$inferInsert;
+export type Achievement = typeof achievements.$inferSelect;
+export type NewAchievement = typeof achievements.$inferInsert;
+export type UserAchievement = typeof userAchievements.$inferSelect;
+export type NewUserAchievement = typeof userAchievements.$inferInsert;
 
 export const insertUserSchema = createInsertSchema(users);
 export const selectUserSchema = createSelectSchema(users);
@@ -282,3 +320,7 @@ export const insertCompanyProfileSchema = createInsertSchema(companyProfiles);
 export const selectCompanyProfileSchema = createSelectSchema(companyProfiles);
 export const insertFileShareSchema = createInsertSchema(fileShares);
 export const selectFileShareSchema = createSelectSchema(fileShares);
+export const insertAchievementSchema = createInsertSchema(achievements);
+export const selectAchievementSchema = createSelectSchema(achievements);
+export const insertUserAchievementSchema = createInsertSchema(userAchievements);
+export const selectUserAchievementSchema = createSelectSchema(userAchievements);
