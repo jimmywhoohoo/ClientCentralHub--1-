@@ -85,7 +85,18 @@ export const tasks = pgTable("tasks", {
   completedAt: timestamp("completed_at"),
 });
 
-// Document relations
+export const documentComments = pgTable("document_comments", {
+  id: serial("id").primaryKey(),
+  documentId: integer("document_id").references(() => documents.id).notNull(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  content: text("content").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  selectionRange: jsonb("selection_range").notNull(),
+  mentions: varchar("mentions").array(),
+  parentId: integer("parent_id").references(() => documentComments.id),
+  resolved: boolean("resolved").default(false),
+});
+
 export const documentRelations = relations(documents, ({ one, many }) => ({
   creator: one(users, {
     fields: [documents.createdBy],
@@ -93,9 +104,9 @@ export const documentRelations = relations(documents, ({ one, many }) => ({
   }),
   messages: many(documentMessages),
   versions: many(documentVersions),
+  comments: many(documentComments),
 }));
 
-// Document messages relations
 export const documentMessageRelations = relations(documentMessages, ({ one }) => ({
   document: one(documents, {
     fields: [documentMessages.documentId],
@@ -107,7 +118,6 @@ export const documentMessageRelations = relations(documentMessages, ({ one }) =>
   }),
 }));
 
-// Document versions relations
 export const documentVersionRelations = relations(documentVersions, ({ one }) => ({
   document: one(documents, {
     fields: [documentVersions.documentId],
@@ -119,7 +129,6 @@ export const documentVersionRelations = relations(documentVersions, ({ one }) =>
   }),
 }));
 
-// File relations
 export const fileRelations = relations(files, ({ one }) => ({
   uploader: one(users, {
     fields: [files.uploadedBy],
@@ -127,7 +136,6 @@ export const fileRelations = relations(files, ({ one }) => ({
   }),
 }));
 
-// Task relations
 export const taskRelations = relations(tasks, ({ one }) => ({
   assignee: one(users, {
     fields: [tasks.assignedTo],
@@ -139,7 +147,6 @@ export const taskRelations = relations(tasks, ({ one }) => ({
   }),
 }));
 
-// User relations
 export const userRelations = relations(users, ({ one, many }) => ({
   companyProfile: one(companyProfiles),
   assignedTasks: many(tasks, { relationName: "assignee" }),
@@ -147,9 +154,9 @@ export const userRelations = relations(users, ({ one, many }) => ({
   uploadedFiles: many(files),
   createdDocuments: many(documents),
   documentMessages: many(documentMessages),
+  documentComments: many(documentComments),
 }));
 
-// Add company profile relations
 export const companyProfileRelations = relations(companyProfiles, ({ one }) => ({
   user: one(users, {
     fields: [companyProfiles.userId],
@@ -157,7 +164,22 @@ export const companyProfileRelations = relations(companyProfiles, ({ one }) => (
   }),
 }));
 
-// Schemas for input validation
+export const documentCommentRelations = relations(documentComments, ({ one, many }) => ({
+  document: one(documents, {
+    fields: [documentComments.documentId],
+    references: [documents.id],
+  }),
+  author: one(users, {
+    fields: [documentComments.userId],
+    references: [users.id],
+  }),
+  parent: one(documentComments, {
+    fields: [documentComments.parentId],
+    references: [documentComments.id],
+  }),
+  replies: many(documentComments),
+}));
+
 export const loginSchema = z.object({
   username: z.string().min(1, "Username is required"),
   password: z.string().min(1, "Password is required"),
@@ -180,7 +202,6 @@ export const updateTaskSchema = createTaskSchema.partial().extend({
   status: z.enum(["pending", "in_progress", "completed", "cancelled"]).optional(),
 });
 
-// Add company profile schemas
 export const updateCompanyProfileSchema = z.object({
   companyName: z.string().min(1, "Company name is required"),
   description: z.string().optional(),
@@ -191,8 +212,18 @@ export const updateCompanyProfileSchema = z.object({
   headquarters: z.string().optional(),
 });
 
+export const createDocumentCommentSchema = z.object({
+  documentId: z.number(),
+  content: z.string().min(1, "Comment is required"),
+  selectionRange: z.object({
+    start: z.number(),
+    end: z.number(),
+    text: z.string(),
+  }),
+  mentions: z.array(z.number()).optional(),
+  parentId: z.number().optional(),
+});
 
-// Types
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
 export type Document = typeof documents.$inferSelect;
@@ -208,8 +239,9 @@ export type NewFile = typeof files.$inferInsert;
 export type LoginInput = z.infer<typeof loginSchema>;
 export type CompanyProfile = typeof companyProfiles.$inferSelect;
 export type NewCompanyProfile = typeof companyProfiles.$inferInsert;
+export type DocumentComment = typeof documentComments.$inferSelect;
+export type NewDocumentComment = typeof documentComments.$inferInsert;
 
-// Insert/Select schemas
 export const insertUserSchema = createInsertSchema(users);
 export const selectUserSchema = createSelectSchema(users);
 export const insertDocumentSchema = createInsertSchema(documents);

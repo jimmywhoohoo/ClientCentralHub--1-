@@ -6,13 +6,18 @@ import { Loader2, Save, Users, History, MessageCircle } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
-import type { Document, DocumentVersion } from "@db/schema";
+import { useEditor, EditorContent } from '@tiptap/react';
+import StarterKit from '@tiptap/starter-kit';
+import Mention from '@tiptap/extension-mention';
+import type { Document, DocumentVersion, DocumentComment } from "@db/schema";
 import { ChatSidebar } from "./ChatSidebar";
+import { CommentSidebar } from "./CommentSidebar";
 import {
   ResizableHandle,
   ResizablePanel,
   ResizablePanelGroup,
 } from "@/components/ui/resizable";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 interface DocumentEditorProps {
   document: Document;
@@ -28,7 +33,7 @@ interface CursorPosition {
 
 export function DocumentEditor({ document, onSave, isLoading }: DocumentEditorProps) {
   const { user } = useUser();
-  const [content, setContent] = useState(document.content);
+  const queryClient = useQueryClient();
   const [ws, setWs] = useState<WebSocket | null>(null);
   const [cursors, setCursors] = useState<CursorPosition[]>([]);
   const [collaborators, setCollaborators] = useState<string[]>([]);
@@ -39,25 +44,91 @@ export function DocumentEditor({ document, onSave, isLoading }: DocumentEditorPr
   const [commitMessage, setCommitMessage] = useState("");
   const [showChat, setShowChat] = useState(true);
   const [defaultLayout, setDefaultLayout] = useState([70, 30]);
+  const [selectedText, setSelectedText] = useState<{
+    text: string;
+    range: { from: number; to: number };
+  } | null>(null);
 
-  const restoreVersion = async (versionId: number) => {
-    try {
-      const response = await fetch(`/api/documents/${document.id}/versions/${versionId}/restore`, {
+  // Fetch comments for the document
+  const { data: comments = [] } = useQuery<DocumentComment[]>({
+    queryKey: ['/api/documents', document.id, 'comments'],
+  });
+
+  // Create comment mutation
+  const createCommentMutation = useMutation({
+    mutationFn: async (data: {
+      content: string;
+      selectionRange: { start: number; end: number; text: string };
+      mentions?: number[];
+    }) => {
+      const response = await fetch(`/api/documents/${document.id}/comments`, {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
         credentials: 'include',
       });
 
       if (!response.ok) {
-        throw new Error('Failed to restore version');
+        throw new Error('Failed to create comment');
       }
 
-      const restoredContent = await response.json();
-      setContent(restoredContent.content);
-      setIsHistoryOpen(false);
-    } catch (error) {
-      console.error('Error restoring version:', error);
-    }
-  };
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ 
+        queryKey: ['/api/documents', document.id, 'comments'] 
+      });
+    },
+  });
+
+  const editor = useEditor({
+    extensions: [
+      StarterKit,
+      Mention.configure({
+        HTMLAttributes: {
+          class: 'mention',
+        },
+        suggestion: {
+          items: ({ query }) => {
+            return collaborators
+              .filter(name => name.toLowerCase().includes(query.toLowerCase()))
+              .slice(0, 5);
+          },
+          render: () => {
+            // Implement mention suggestion rendering
+            return {
+              onStart: () => { /* ... */ },
+              onUpdate: () => { /* ... */ },
+              onKeyDown: () => { /* ... */ },
+              onExit: () => { /* ... */ },
+            };
+          },
+        },
+      }),
+    ],
+    content: document.content,
+    onSelectionUpdate: ({ editor }) => {
+      const { from, to } = editor.state.selection;
+      const text = editor.state.doc.textBetween(from, to);
+      if (text) {
+        setSelectedText({ text, range: { from, to } });
+      } else {
+        setSelectedText(null);
+      }
+    },
+    onUpdate: ({ editor }) => {
+      const content = editor.getHTML();
+
+      if (ws?.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+          type: 'update',
+          documentId: document.id,
+          content,
+          userId: user?.id,
+        }));
+      }
+    },
+  });
 
   useEffect(() => {
     // Fetch version history
@@ -85,8 +156,10 @@ export function DocumentEditor({ document, onSave, isLoading }: DocumentEditorPr
     socket.onmessage = (event) => {
       const data = JSON.parse(event.data);
 
-      if (data.type === 'update') {
-        setContent(data.content);
+      if (data.type === 'update' && editor) {
+        const currentPos = editor.state.selection.$head.pos;
+        editor.commands.setContent(data.content);
+        editor.commands.setTextSelection(currentPos);
       } else if (data.type === 'cursor') {
         setCursors(prev => {
           const filtered = prev.filter(c => c.userId !== data.userId);
@@ -110,23 +183,11 @@ export function DocumentEditor({ document, onSave, isLoading }: DocumentEditorPr
     return () => {
       socket.close();
     };
-  }, [document.id, user?.id, user?.username]);
-
-  const handleContentChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const newContent = e.target.value;
-    setContent(newContent);
-
-    if (ws?.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({
-        type: 'update',
-        documentId: document.id,
-        content: newContent,
-        userId: user?.id,
-      }));
-    }
-  };
+  }, [document.id, user?.id, user?.username, editor]);
 
   const handleSave = async () => {
+    if (!editor) return;
+
     setIsSaving(true);
     try {
       const response = await fetch(`/api/documents/${document.id}/versions`, {
@@ -135,7 +196,7 @@ export function DocumentEditor({ document, onSave, isLoading }: DocumentEditorPr
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          content,
+          content: editor.getHTML(),
           commitMessage,
         }),
         credentials: 'include',
@@ -154,6 +215,21 @@ export function DocumentEditor({ document, onSave, isLoading }: DocumentEditorPr
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const handleAddComment = async () => {
+    if (!selectedText) return;
+
+    await createCommentMutation.mutate({
+      content: '',
+      selectionRange: {
+        start: selectedText.range.from,
+        end: selectedText.range.to,
+        text: selectedText.text,
+      },
+    });
+
+    setSelectedText(null);
   };
 
   if (isLoading) {
@@ -193,6 +269,15 @@ export function DocumentEditor({ document, onSave, isLoading }: DocumentEditorPr
                       {collaborators.length} active
                     </span>
                   </div>
+                  {selectedText && (
+                    <Button
+                      variant="outline"
+                      onClick={handleAddComment}
+                      disabled={createCommentMutation.isPending}
+                    >
+                      Add Comment
+                    </Button>
+                  )}
                   <Button
                     variant="outline"
                     onClick={() => setIsHistoryOpen(true)}
@@ -220,11 +305,9 @@ export function DocumentEditor({ document, onSave, isLoading }: DocumentEditorPr
               </div>
             </CardHeader>
             <CardContent className="flex-1 relative p-0">
-              <textarea
-                className="w-full h-full min-h-[500px] p-4 bg-background resize-none focus:outline-none"
-                value={content}
-                onChange={handleContentChange}
-                placeholder="Start typing..."
+              <EditorContent 
+                editor={editor} 
+                className="w-full h-full min-h-[500px] p-4 bg-background focus:outline-none prose prose-sm max-w-none"
               />
               {cursors.map((cursor) => (
                 <div
@@ -248,10 +331,17 @@ export function DocumentEditor({ document, onSave, isLoading }: DocumentEditorPr
         <ResizableHandle />
 
         <ResizablePanel defaultSize={defaultLayout[1]} minSize={20}>
-          <ChatSidebar
-            documentId={document.id}
-            collaborators={collaborators}
-          />
+          <div className="h-full flex flex-col">
+            <ChatSidebar
+              documentId={document.id}
+              collaborators={collaborators}
+            />
+            <CommentSidebar
+              documentId={document.id}
+              comments={comments}
+              onCreateComment={createCommentMutation.mutate}
+            />
+          </div>
         </ResizablePanel>
       </ResizablePanelGroup>
 
@@ -289,7 +379,12 @@ export function DocumentEditor({ document, onSave, isLoading }: DocumentEditorPr
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => restoreVersion(version.id)}
+                        onClick={() => {
+                          if (editor) {
+                            editor.commands.setContent(version.content);
+                            setIsHistoryOpen(false);
+                          }
+                        }}
                       >
                         Restore
                       </Button>
