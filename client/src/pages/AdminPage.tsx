@@ -126,11 +126,17 @@ export default function AdminPage() {
   });
 
   const updateUserMutation = useMutation({
-    mutationFn: async ({ id, role, active }: { id: number; role: string; active: boolean }) => {
+    mutationFn: async ({ id, role, active, username, companyName }: { 
+      id: number; 
+      role: string; 
+      active: boolean;
+      username?: string;
+      companyName?: string;
+    }) => {
       const response = await fetch(`/api/admin/users/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ role, active }),
+        body: JSON.stringify({ role, active, username, companyName }),
         credentials: "include",
       });
 
@@ -497,11 +503,43 @@ export default function AdminPage() {
           <DialogHeader>
             <DialogTitle>Edit User: {selectedUser?.username}</DialogTitle>
             <DialogDescription>
-              Modify user role and status
+              Modify user details and permissions
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Username</label>
+              <Input
+                value={selectedUser?.username}
+                onChange={(e) => {
+                  if (selectedUser) {
+                    setSelectedUser({
+                      ...selectedUser,
+                      username: e.target.value
+                    });
+                  }
+                }}
+                placeholder="Enter username"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Company Name</label>
+              <Input
+                value={selectedUser?.companyName}
+                onChange={(e) => {
+                  if (selectedUser) {
+                    setSelectedUser({
+                      ...selectedUser,
+                      companyName: e.target.value
+                    });
+                  }
+                }}
+                placeholder="Enter company name"
+              />
+            </div>
+
             <div className="space-y-2">
               <label className="text-sm font-medium">Role</label>
               <Select
@@ -512,6 +550,8 @@ export default function AdminPage() {
                       id: selectedUser.id,
                       role: value,
                       active: selectedUser.active,
+                      username: selectedUser.username,
+                      companyName: selectedUser.companyName
                     });
                   }
                 }}
@@ -536,6 +576,8 @@ export default function AdminPage() {
                       id: selectedUser.id,
                       role: selectedUser.role,
                       active: value === "active",
+                      username: selectedUser.username,
+                      companyName: selectedUser.companyName
                     });
                   }
                 }}
@@ -549,6 +591,31 @@ export default function AdminPage() {
                 </SelectContent>
               </Select>
             </div>
+
+            <Button 
+              className="w-full"
+              onClick={() => {
+                if (selectedUser) {
+                  updateUserMutation.mutate({
+                    id: selectedUser.id,
+                    role: selectedUser.role,
+                    active: selectedUser.active,
+                    username: selectedUser.username,
+                    companyName: selectedUser.companyName
+                  });
+                }
+              }}
+              disabled={updateUserMutation.isPending}
+            >
+              {updateUserMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                'Save Changes'
+              )}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
