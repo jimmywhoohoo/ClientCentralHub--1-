@@ -58,29 +58,29 @@ export function UserTaskDetails({ user, open, onOpenChange }: UserTaskDetailsPro
 
   const deleteTaskMutation = useMutation({
     mutationFn: async (taskId: number) => {
-      // First, delete all activities for this task
-      const deleteActivitiesResponse = await fetch(`/api/admin/tasks/${taskId}/activities`, {
-        method: "DELETE",
-        credentials: "include",
-      });
+      try {
+        // Delete all activities for this task
+        await fetch(`/api/admin/tasks/${taskId}/activities`, {
+          method: "DELETE",
+          credentials: "include",
+        });
 
-      if (!deleteActivitiesResponse.ok) {
-        const errorText = await deleteActivitiesResponse.text();
-        throw new Error(`Failed to delete task activities: ${errorText}`);
+        // Now delete the task
+        const response = await fetch(`/api/admin/tasks/${taskId}`, {
+          method: "DELETE",
+          credentials: "include",
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`Failed to delete task: ${errorText}`);
+        }
+
+        return response.json();
+      } catch (error) {
+        console.error('Error deleting task:', error);
+        throw error;
       }
-
-      // Now that activities are deleted, delete the task
-      const deleteTaskResponse = await fetch(`/api/admin/tasks/${taskId}`, {
-        method: "DELETE",
-        credentials: "include",
-      });
-
-      if (!deleteTaskResponse.ok) {
-        const errorText = await deleteTaskResponse.text();
-        throw new Error(`Failed to delete task: ${errorText}`);
-      }
-
-      return deleteTaskResponse.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/admin/users/${user?.id}/tasks`] });
@@ -91,6 +91,7 @@ export function UserTaskDetails({ user, open, onOpenChange }: UserTaskDetailsPro
       });
     },
     onError: (error: Error) => {
+      console.error('Delete task error:', error);
       toast({
         title: "Error",
         description: error.message,

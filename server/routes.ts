@@ -558,7 +558,27 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Add delete task endpoint
+  // Add delete task activities endpoint
+  app.delete("/api/admin/tasks/:taskId/activities", async (req, res) => {
+    if (!req.isAuthenticated() || req.user.role !== "admin") {
+      return res.status(403).json({ error: "Not authorized" });
+    }
+
+    try {
+      const { taskId } = req.params;
+
+      // Delete all activities for this task
+      await db.delete(taskActivities)
+        .where(eq(taskActivities.taskId, parseInt(taskId)));
+
+      res.json({ message: "Task activities deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting task activities:", error);
+      res.status(500).json({ error: "Failed to delete task activities" });
+    }
+  });
+
+  // Update delete task endpoint
   app.delete("/api/admin/tasks/:id", async (req, res) => {
     if (!req.isAuthenticated() || req.user.role !== "admin") {
       return res.status(403).json({ error: "Not authorized" });
@@ -566,20 +586,21 @@ export function registerRoutes(app: Express): Server {
 
     try {
       const { id } = req.params;
-      const [task] = await db.select()
-        .from(tasks)
-        .where(eq(tasks.id, parseInt(id)))
-        .limit(1);
 
-      if (!task) {
+      // First delete all activities for this task
+      await db.delete(taskActivities)
+        .where(eq(taskActivities.taskId, parseInt(id)));
+
+      // Then delete the task
+      const [deletedTask] = await db.delete(tasks)
+        .where(eq(tasks.id, parseInt(id)))
+        .returning();
+
+      if (!deletedTask) {
         return res.status(404).json({ error: "Task not found" });
       }
 
-      // Delete the task
-      await db.delete(tasks)
-        .where(eq(tasks.id, parseInt(id)));
-
-      res.json({ message: "Task deleted successfully" });
+      res.json({ message: "Task and related activities deleted successfully" });
     } catch (error) {
       console.error("Error deleting task:", error);
       res.status(500).json({ error: "Failed to delete task" });
