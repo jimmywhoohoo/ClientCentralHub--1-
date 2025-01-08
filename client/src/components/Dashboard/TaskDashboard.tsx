@@ -151,16 +151,18 @@ export function TaskDashboard() {
       setSyncStatus("syncing");
 
       if (ws?.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({
+        const message = {
           type: 'task_update',
           taskId: task.id,
           changes: {
             status: task.status === 'completed' ? 'pending' : 'completed',
-            completedAt: task.status === 'completed' ? new Date().toISOString() : null,
+            completedAt: task.status === 'completed' ? null : new Date().toISOString(),
             updatedAt: new Date().toISOString()
           },
           userId: user?.id
-        }));
+        };
+
+        ws.send(JSON.stringify(message));
       } else {
         setTaskError({
           type: 'network',

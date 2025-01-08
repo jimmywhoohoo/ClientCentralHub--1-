@@ -15,7 +15,11 @@ interface Client {
 interface TaskUpdate {
   type: 'task_update';
   taskId: number;
-  changes: Record<string, any>;
+  changes: {
+    status: string;
+    completedAt: string | null;
+    updatedAt: string;
+  };
   userId: number;
 }
 
@@ -52,7 +56,7 @@ export function setupWebSocket(server: Server) {
 
         if (!client) return;
 
-        if (message.type === 'task_update') {
+        if (message.type === 'task_update' && message.taskId && message.changes) {
           // Update task in database
           const [updatedTask] = await db
             .update(tasks)
@@ -60,11 +64,13 @@ export function setupWebSocket(server: Server) {
             .where(eq(tasks.id, message.taskId))
             .returning();
 
-          // Broadcast task update to all clients
-          broadcastToClients({
-            type: 'TASK_UPDATE',
-            task: updatedTask
-          });
+          if (updatedTask) {
+            // Broadcast task update to all clients
+            broadcastToClients({
+              type: 'TASK_UPDATE',
+              task: updatedTask
+            });
+          }
         }
       } catch (error) {
         console.error('WebSocket message error:', error);
@@ -83,13 +89,15 @@ export function setupWebSocket(server: Server) {
     ws.once('message', (data) => {
       try {
         const { userId, username } = JSON.parse(data.toString());
-        clients.set(clientId, { id: clientId, ws, userId, username });
+        if (userId && username) {
+          clients.set(clientId, { id: clientId, ws, userId, username });
 
-        // Send initial sync status
-        ws.send(JSON.stringify({
-          type: 'CONNECTED',
-          message: 'Successfully connected to real-time updates'
-        }));
+          // Send initial sync status
+          ws.send(JSON.stringify({
+            type: 'CONNECTED',
+            message: 'Successfully connected to real-time updates'
+          }));
+        }
       } catch (error) {
         console.error('WebSocket auth error:', error);
         ws.close();
