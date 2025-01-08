@@ -953,7 +953,7 @@ export default function AdminPage() {
                   </div>
                   <div>
                     <dt className="text-sm text-muted-foreground">Company</dt>
-                    <dd>{selectedFile?.uploader.companyName}</dd>
+                    <dd>{selectedFile?.uploader.companyNamedd}</dd>
                   </div>
                   <div>
                     <dt className="text-sm text-muted-foreground">Status</dt>
@@ -1031,7 +1031,7 @@ export default function AdminPage() {
         </AlertDialogContent>
       </AlertDialog>
       <FileShareDialog
-        file={fileToShare as File}
+        file={fileToShare}
         users={data?.users || []}
         open={!!fileToShare}
         onOpenChange={(open) => !open && setFileToShare(null)}

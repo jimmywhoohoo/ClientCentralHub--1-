@@ -19,11 +19,11 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Loader2, Users } from "lucide-react";
-import type { User, File } from "@db/schema";
+import type { User, FileWithUploader } from "@db/schema";
 import { format, addDays } from "date-fns";
 
 interface FileShareDialogProps {
-  file: File;
+  file: FileWithUploader | null;
   users: User[];
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -37,6 +37,8 @@ export function FileShareDialog({ file, users, open, onOpenChange }: FileShareDi
 
   const shareFileMutation = useMutation({
     mutationFn: async () => {
+      if (!file) return;
+
       const response = await fetch(`/api/admin/files/${file.id}/share`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -71,6 +73,8 @@ export function FileShareDialog({ file, users, open, onOpenChange }: FileShareDi
       });
     },
   });
+
+  if (!file) return null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
