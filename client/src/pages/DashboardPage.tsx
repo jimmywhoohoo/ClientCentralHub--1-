@@ -7,8 +7,10 @@ import type { Document, Questionnaire as QuestionnaireType } from "@db/schema";
 import { Card, CardContent } from "@/components/ui/card";
 import { Clock, FileText, Users, TrendingUp } from "lucide-react";
 import { DocumentRecommendations } from "../components/Dashboard/DocumentRecommendations";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 export default function DashboardPage() {
+  const isMobile = useIsMobile();
   const { data: documents, isLoading: isLoadingDocuments } = useQuery<Document[]>({
     queryKey: ["/api/documents"],
   });
@@ -45,21 +47,21 @@ export default function DashboardPage() {
   ];
 
   return (
-    <div className="flex h-screen">
+    <div className="flex min-h-screen bg-background">
       <Sidebar />
-      <main className="flex-1 overflow-y-auto p-8 bg-background">
-        <div className="max-w-7xl mx-auto space-y-8">
+      <main className="flex-1 p-4 md:p-8 overflow-y-auto mt-16 md:mt-0 ml-0 md:ml-64">
+        <div className="max-w-7xl mx-auto space-y-6 md:space-y-8">
           {/* Stats Section */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {stats.map((stat) => (
-              <Card key={stat.title}>
-                <CardContent className="p-6">
+              <Card key={stat.title} className="touch-manipulation">
+                <CardContent className="p-4 md:p-6">
                   <div className="flex items-center justify-between">
                     <div className="space-y-1">
                       <p className="text-sm font-medium text-muted-foreground">
                         {stat.title}
                       </p>
-                      <p className="text-2xl font-bold">{stat.value}</p>
+                      <p className="text-xl md:text-2xl font-bold">{stat.value}</p>
                     </div>
                     <div className="text-muted-foreground">
                       {stat.icon}
@@ -74,17 +76,17 @@ export default function DashboardPage() {
           </div>
 
           {/* Analytics Dashboard */}
-          <section>
+          <section className="touch-manipulation">
             <DocumentAnalytics />
           </section>
 
           {/* Add Recommendations Section */}
-          <section>
+          <section className="touch-manipulation">
             <DocumentRecommendations />
           </section>
 
           {/* Documents and Questionnaires */}
-          <div className="grid md:grid-cols-2 gap-8">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8">
             <section>
               <h2 className="text-lg font-semibold mb-4">Documents</h2>
               <DocumentList 
