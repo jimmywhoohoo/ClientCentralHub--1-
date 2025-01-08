@@ -770,7 +770,7 @@ export function registerRoutes(app: Express): Server {
       // Check for achievements if task is completed
       if (result.data.status === 'completed' && currentTask.status !== 'completed') {
         // Get all task-related achievements
-        const taskAchievements = await db.query.achievements.findMany({
+        const allAchievements = await db.query.achievements.findMany({
           where: eq(achievements.category, 'tasks'),
         });
 
@@ -780,8 +780,8 @@ export function registerRoutes(app: Express): Server {
         });
 
         // Get completed tasks count
-        const [completedTasks] = await db
-          .select({ count: sql<number>`count(*)` })
+        const [completedTasksResult] = await db
+          .select({ count: sql<number>`count(*)::integer` })
           .from(tasks)
           .where(
             and(
@@ -790,24 +790,24 @@ export function registerRoutes(app: Express): Server {
             )
           );
 
+        const completedTasksCount = completedTasksResult?.count || 0;
+
         // Check each achievement
-        for (const achievement of taskAchievements) {
+        for (const achievement of allAchievements) {
           // Skip if already unlocked
           if (unlockedAchievements.some(ua => ua.achievementId === achievement.id)) {
             continue;
           }
 
           const criteria = achievement.criteria as Record<string, any>;
-          if (completedTasks.count >= criteria.tasksCompleted) {
+          if (criteria?.tasksCompleted && completedTasksCount >= criteria.tasksCompleted) {
             // Unlock the achievement
             await db.insert(userAchievements)
               .values({
                 userId: req.user.id,
                 achievementId: achievement.id,
                 unlockedAt: new Date(),
-                progress: {
-                  completedTasks: completedTasks.count,
-                },
+                progress: completedTasksCount,
               });
 
             // Create notification for achievement unlock
@@ -918,59 +918,68 @@ export function registerRoutes(app: Express): Server {
         },
       });
 
+      // Get completed tasks count for progress calculation
+      const [completedTasksResult] = await db
+        .select({ count: sql<number>`count(*)::integer` })
+        .from(tasks)
+        .where(
+          and(
+            eq(tasks.assignedTo, req.user.id),
+            eq(tasks.status, "completed")
+          )
+        );
+
+      const completedTasksCount = completedTasksResult?.count || 0;
+
+      // Get total comments for progress calculation
+      const [totalCommentsResult] = await db
+        .select({ count: sql<number>`count(*)::integer` })
+        .from(documentComments)
+        .where(eq(documentComments.userId, req.user.id));
+
+      const totalCommentsCount = totalCommentsResult?.count || 0;
+
       // Calculate progress for each achievement
-      const achievementsWithProgress = await Promise.all(
-        achievements.map(async (achievement) => {
-          const userAchievement = achievement.userAchievements[0];
-          if (userAchievement) {
-            return {
-              ...achievement,
-              userAchievement,
-              progress: 100,
-            };
-          }
-
-          // Calculate progress based on achievement criteria
-          let progress = 0;
-          const criteria = achievement.criteria as Record<string, any>;
-
-          switch (achievement.category) {
-            case "tasks": {
-              const completedTasks = await db
-                .select({ count:sql<number>`count(*)` })
-                .from(tasks)
-                .where(
-                  and(
-                    eq(tasks.assignedTo, req.user.id),
-                    eq(tasks.status, "completed")
-                  )
-                );
-              progress = Math.min(
-                100,
-                (completedTasks[0].count / criteria.tasksCompleted) * 100
-              );
-              break;
-            }
-            case "collaboration": {
-              const totalComments = await db
-                .select({ count: sql<number>`count(*)` })
-                .from(documentComments)
-                .where(eq(documentComments.userId, req.user.id));
-              progress = Math.min(
-                100,
-                (totalComments[0].count / criteria.commentsPosted) * 100
-              );
-              break;
-            }
-            // Add more achievement categories as needed
-          }
-
+      const achievementsWithProgress = achievements.map((achievement) => {
+        const userAchievement = achievement.userAchievements[0];
+        if (userAchievement) {
           return {
             ...achievement,
-            progress: Math.round(progress),
+            userAchievement,
+            progress: 100,
           };
-        })
-      );
+        }
+
+        // Calculate progress based on achievement criteria
+        let progress = 0;
+        const criteria = achievement.criteria as Record<string, any>;
+
+        switch (achievement.category) {
+          case "tasks": {
+            if (criteria?.tasksCompleted) {
+              progress = Math.min(
+                100,
+                Math.round((completedTasksCount * 100) / criteria.tasksCompleted)
+              );
+            }
+            break;
+          }
+          case "collaboration": {
+            if (criteria?.commentsPosted) {
+              progress = Math.min(
+                100,
+                Math.round((totalCommentsCount * 100) / criteria.commentsPosted)
+              );
+            }
+            break;
+          }
+        }
+
+        return {
+          ...achievement,
+          progress: Math.round(progress),
+        };
+      });
 
       res.json(achievementsWithProgress);
     } catch (error) {
@@ -1047,7 +1056,7 @@ export function registerRoutes(app: Express): Server {
           }
 
           const criteria = achievement.criteria as Record<string, any>;
-          if (completedTasks.count >= criteria.tasksCompleted) {
+          if (criteria?.tasksCompleted && completedTasks[0]?.count && completedTasks[0].count >= criteria.tasksCompleted) {
             // Unlock the achievement
             await db.insert(userAchievements)
               .values({
@@ -1055,7 +1064,7 @@ export function registerRoutes(app: Express): Server {
                 achievementId: achievement.id,
                 unlockedAt: new Date(),
                 progress: {
-                  completedTasks: completedTasks.count,
+                  completedTasks: completedTasks[0].count,
                 },
               });
 
