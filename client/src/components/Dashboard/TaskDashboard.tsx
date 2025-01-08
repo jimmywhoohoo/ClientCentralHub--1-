@@ -7,6 +7,7 @@ import type { Task, User } from "@db/schema";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Clock, CheckCircle2, AlertCircle, Plus, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { SearchAndFilter, type FilterOptions } from "./SearchAndFilter";
 import {
   Dialog,
   DialogContent,
@@ -54,6 +55,12 @@ type PaginatedResponse = {
 
 export function TaskDashboard() {
   const [showNewTaskDialog, setShowNewTaskDialog] = useState(false);
+  const [filters, setFilters] = useState<FilterOptions>({
+    status: "",
+    priority: "",
+    dateRange: "",
+    search: "",
+  });
   const [newTask, setNewTask] = useState<NewTask>({
     title: "",
     description: "",
@@ -65,7 +72,7 @@ export function TaskDashboard() {
   const queryClient = useQueryClient();
 
   const { data: taskStats, isLoading } = useQuery<TaskStats>({
-    queryKey: ['/api/tasks/stats'],
+    queryKey: ['/api/tasks/stats', filters],
   });
 
   const { data: usersData } = useQuery<PaginatedResponse>({
@@ -147,6 +154,8 @@ export function TaskDashboard() {
           Create Task
         </Button>
       </div>
+
+      <SearchAndFilter onFilterChange={setFilters} />
 
       <div className="grid gap-4 grid-cols-1 md:grid-cols-3">
         <Card>
@@ -297,7 +306,7 @@ export function TaskDashboard() {
               <Label>Priority</Label>
               <Select
                 value={newTask.priority}
-                onValueChange={(value: "low" | "medium" | "high") => 
+                onValueChange={(value: "low" | "medium" | "high") =>
                   setNewTask({ ...newTask, priority: value })
                 }
               >

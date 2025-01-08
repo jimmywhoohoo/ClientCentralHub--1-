@@ -4,7 +4,7 @@ import { setupAuth } from "./auth";
 import { setupWebSocket } from "./websocket";
 import { db } from "@db";
 import { tasks, users, files, companyProfiles } from "@db/schema";
-import { eq, desc, or, asc } from "drizzle-orm";
+import { eq, desc, or, asc, and } from "drizzle-orm";
 import { errorHandler, apiErrorLogger } from "./error-handler";
 import { createTaskSchema, updateTaskSchema, updateCompanyProfileSchema } from "@db/schema";
 import { sql } from "drizzle-orm";
@@ -444,24 +444,86 @@ export function registerRoutes(app: Express): Server {
     }
 
     try {
+      const { status, priority, dateRange, search } = req.query;
       const now = new Date();
+
+      let conditions = [];
+
+      // Add status filter
+      if (status) {
+        conditions.push(eq(tasks.status, status as string));
+      }
+
+      // Add priority filter
+      if (priority) {
+        conditions.push(eq(tasks.priority, priority as string));
+      }
+
+      // Add date range filter
+      if (dateRange) {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        switch (dateRange) {
+          case 'today':
+            conditions.push(sql`DATE(${tasks.createdAt}) = DATE(${today})`);
+            break;
+          case 'week':
+            const weekAgo = new Date(today);
+            weekAgo.setDate(weekAgo.getDate() - 7);
+            conditions.push(sql`${tasks.createdAt} >= ${weekAgo}`);
+            break;
+          case 'month':
+            const monthAgo = new Date(today);
+            monthAgo.setMonth(monthAgo.getMonth() - 1);
+            conditions.push(sql`${tasks.createdAt} >= ${monthAgo}`);
+            break;
+        }
+      }
+
+      // Add search filter
+      if (search) {
+        conditions.push(
+          or(
+            sql`${tasks.title} ILIKE ${`%${search}%`}`,
+            sql`${tasks.description} ILIKE ${`%${search}%`}`
+          )
+        );
+      }
+
+      const whereClause = conditions.length > 0
+        ? and(...conditions)
+        : undefined;
+
       const [stats] = await db.select({
         pending: sql<number>`COUNT(*) FILTER (WHERE ${tasks.status} = 'pending')`,
         completed: sql<number>`COUNT(*) FILTER (WHERE ${tasks.status} = 'completed')`,
         overdue: sql<number>`COUNT(*) FILTER (WHERE ${tasks.status} = 'pending' AND ${tasks.deadline} < ${now})`,
-      }).from(tasks);
+      })
+        .from(tasks)
+        .where(whereClause);
 
       const upcomingDeadlines = await db.query.tasks.findMany({
-        where: or(
-          eq(tasks.status, "pending"),
-          eq(tasks.status, "in_progress")
-        ),
+        where: whereClause ? 
+          and(
+            whereClause,
+            or(
+              eq(tasks.status, "pending"),
+              eq(tasks.status, "in_progress")
+            )
+          ) :
+          or(
+            eq(tasks.status, "pending"),
+            eq(tasks.status, "in_progress")
+          ),
         orderBy: [asc(tasks.deadline)],
         limit: 5,
       });
 
       const recentlyCompleted = await db.query.tasks.findMany({
-        where: eq(tasks.status, "completed"),
+        where: whereClause ?
+          and(whereClause, eq(tasks.status, "completed")) :
+          eq(tasks.status, "completed"),
         orderBy: [desc(tasks.completedAt)],
         limit: 5,
       });
