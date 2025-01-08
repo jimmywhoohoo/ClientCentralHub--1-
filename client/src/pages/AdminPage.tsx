@@ -23,7 +23,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
-import { Search, Loader2, Shield, Image, Files } from "lucide-react";
+import { Search, Loader2, Shield, Image, Files, Calendar } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
   Dialog,
@@ -34,6 +34,15 @@ import {
 } from "@/components/ui/dialog";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar as CalendarComponent } from "@/components/ui/calendar";
+import { format } from "date-fns";
+import { Breadcrumb, BreadcrumbItem, BreadcrumbLink } from "@/components/ui/breadcrumb";
+import { Badge } from "@/components/ui/badge";
+
+type FileWithUploader = File & {
+  uploader: User;
+};
 
 type PaginatedResponse = {
   users: User[];
@@ -46,7 +55,7 @@ type PaginatedResponse = {
 };
 
 type PaginatedFileResponse = {
-  files: (File & { uploader: User })[];
+  files: FileWithUploader[];
   pagination: {
     total: number;
     page: number;
@@ -86,9 +95,20 @@ export default function AdminPage() {
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [selectedUserFiles, setSelectedUserFiles] = useState<User | null>(null);
   const [userFilesPage, setUserFilesPage] = useState(1);
+  const [fileListPage, setFileListPage] = useState(1);
+  const [selectedFile, setSelectedFile] = useState<FileWithUploader | null>(null);
+  const [dateRange, setDateRange] = useState<{ from: Date | null; to: Date | null }>({
+    from: null,
+    to: null,
+  });
+  const [fileTypeFilter, setFileTypeFilter] = useState<string>("all");
+  const [sortBy, setSortBy] = useState<{
+    field: "uploadedAt" | "fileName" | "fileSize";
+    order: "asc" | "desc";
+  }>({ field: "uploadedAt", order: "desc" });
+
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const [fileListPage, setFileListPage] = useState(1);
 
   const { data, isLoading: loadingUsers } = useQuery<PaginatedResponse>({
     queryKey: ["/api/admin/users", page],
@@ -151,11 +171,57 @@ export default function AdminPage() {
     user.companyName.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const fileTypes = Array.from(
+    new Set((fileData?.files || []).map((file) => file.fileType))
+  );
+
+  // Filter and sort files
+  const filteredFiles = (fileData?.files || [])
+    .filter((file) => {
+      const matchesSearch = file.fileName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        file.uploader.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        file.uploader.companyName.toLowerCase().includes(searchQuery.toLowerCase());
+
+      const matchesType = fileTypeFilter === "all" || file.fileType === fileTypeFilter;
+
+      const matchesDate = (!dateRange.from || new Date(file.uploadedAt) >= dateRange.from) &&
+        (!dateRange.to || new Date(file.uploadedAt) <= dateRange.to);
+
+      return matchesSearch && matchesType && matchesDate;
+    })
+    .sort((a, b) => {
+      const order = sortBy.order === "asc" ? 1 : -1;
+      switch (sortBy.field) {
+        case "uploadedAt":
+          return (new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime()) * order;
+        case "fileName":
+          return a.fileName.localeCompare(b.fileName) * order;
+        case "fileSize":
+          return (a.fileSize - b.fileSize) * order;
+        default:
+          return 0;
+      }
+    });
+
   return (
     <div className="flex min-h-screen bg-background">
       <Sidebar />
       <main className="flex-1 p-4 md:p-8 overflow-y-auto mt-16 md:mt-0 ml-0 md:ml-64">
         <div className="max-w-7xl mx-auto space-y-6">
+          {/* Breadcrumb Navigation */}
+          <Breadcrumb>
+            <BreadcrumbItem>
+              <BreadcrumbLink href="/admin">Admin Dashboard</BreadcrumbLink>
+            </BreadcrumbItem>
+            {selectedUserFiles && (
+              <BreadcrumbItem>
+                <BreadcrumbLink>
+                  {selectedUserFiles.username}'s Files
+                </BreadcrumbLink>
+              </BreadcrumbItem>
+            )}
+          </Breadcrumb>
+
           <div className="flex items-center justify-between">
             <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-2">
               <Shield className="h-8 w-8" />
@@ -263,7 +329,83 @@ export default function AdminPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle>All Uploaded Files</CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle>All Uploaded Files</CardTitle>
+                <div className="flex items-center gap-2">
+                  {/* File Type Filter */}
+                  <Select value={fileTypeFilter} onValueChange={setFileTypeFilter}>
+                    <SelectTrigger className="w-[200px]">
+                      <SelectValue placeholder="Filter by type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Types</SelectItem>
+                      {fileTypes.map((type) => (
+                        <SelectItem key={type} value={type}>{type}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
+                  {/* Date Range Filter */}
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" className="flex items-center gap-2">
+                        <Calendar className="h-4 w-4" />
+                        {dateRange.from ? (
+                          dateRange.to ? (
+                            <>
+                              {format(dateRange.from, "LLL dd, y")} -{" "}
+                              {format(dateRange.to, "LLL dd, y")}
+                            </>
+                          ) : (
+                            format(dateRange.from, "LLL dd, y")
+                          )
+                        ) : (
+                          "Pick a date range"
+                        )}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="end">
+                      <CalendarComponent
+                        mode="range"
+                        selected={{
+                          from: dateRange.from || undefined,
+                          to: dateRange.to || undefined,
+                        }}
+                        onSelect={(range) =>
+                          setDateRange({
+                            from: range?.from || null,
+                            to: range?.to || null
+                          })
+                        }
+                      />
+                    </PopoverContent>
+                  </Popover>
+
+                  {/* Sort Options */}
+                  <Select
+                    value={`${sortBy.field}-${sortBy.order}`}
+                    onValueChange={(value) => {
+                      const [field, order] = value.split("-") as [
+                        "uploadedAt" | "fileName" | "fileSize",
+                        "asc" | "desc"
+                      ];
+                      setSortBy({ field, order });
+                    }}
+                  >
+                    <SelectTrigger className="w-[160px]">
+                      <SelectValue placeholder="Sort by" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="uploadedAt-desc">Latest First</SelectItem>
+                      <SelectItem value="uploadedAt-asc">Oldest First</SelectItem>
+                      <SelectItem value="fileName-asc">Name (A-Z)</SelectItem>
+                      <SelectItem value="fileName-desc">Name (Z-A)</SelectItem>
+                      <SelectItem value="fileSize-desc">Size (Largest)</SelectItem>
+                      <SelectItem value="fileSize-asc">Size (Smallest)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
             </CardHeader>
             <CardContent>
               {loadingFiles ? (
@@ -288,8 +430,8 @@ export default function AdminPage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {(fileData?.files || []).map((file) => (
-                          <TableRow key={file.id} className="hover:bg-muted/50">
+                        {filteredFiles.map((file) => (
+                          <TableRow key={file.id} className="hover:bg-muted/50" onClick={() => setSelectedFile(file)}>
                             <TableCell className="font-medium">
                               <div className="flex items-center gap-2">
                                 {file.thumbnailPath ? (
@@ -505,6 +647,82 @@ export default function AdminPage() {
               </div>
             )}
           </ScrollArea>
+        </DialogContent>
+      </Dialog>
+
+      {/* File Preview Dialog */}
+      <Dialog open={!!selectedFile} onOpenChange={() => setSelectedFile(null)}>
+        <DialogContent className="max-w-4xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Files className="h-5 w-5" />
+              File Preview: {selectedFile?.fileName}
+            </DialogTitle>
+            <DialogDescription>
+              Uploaded by {selectedFile?.uploader.username} from {selectedFile?.uploader.companyName}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {/* File Preview */}
+            <div className="rounded-lg border bg-card p-4">
+              {selectedFile?.thumbnailPath ? (
+                <AspectRatio ratio={16 / 9}>
+                  <img
+                    src={`/api/files/thumbnail/${selectedFile.id}`}
+                    alt={selectedFile.fileName}
+                    className="rounded-md object-contain w-full h-full"
+                  />
+                </AspectRatio>
+              ) : (
+                <div className="flex items-center justify-center h-48 bg-muted rounded-md">
+                  <Image className="h-16 w-16 text-muted-foreground" />
+                </div>
+              )}
+            </div>
+
+            {/* File Details */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <h4 className="font-medium text-sm">File Details</h4>
+                <dl className="mt-2 space-y-2">
+                  <div>
+                    <dt className="text-sm text-muted-foreground">Type</dt>
+                    <dd>{selectedFile?.fileType}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-sm text-muted-foreground">Size</dt>
+                    <dd>{formatFileSize(selectedFile?.fileSize || 0)}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-sm text-muted-foreground">Upload Date</dt>
+                    <dd>{selectedFile?.uploadedAt && format(new Date(selectedFile.uploadedAt), "PPP")}</dd>
+                  </div>
+                </dl>
+              </div>
+              <div>
+                <h4 className="font-medium text-sm">Uploader Information</h4>
+                <dl className="mt-2 space-y-2">
+                  <div>
+                    <dt className="text-sm text-muted-foreground">Username</dt>
+                    <dd>{selectedFile?.uploader.username}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-sm text-muted-foreground">Company</dt>
+                    <dd>{selectedFile?.uploader.companyName}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-sm text-muted-foreground">Status</dt>
+                    <dd>
+                      <Badge variant={selectedFile?.isArchived ? "secondary" : "default"}>
+                        {selectedFile?.isArchived ? "Archived" : "Active"}
+                      </Badge>
+                    </dd>
+                  </div>
+                </dl>
+              </div>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
