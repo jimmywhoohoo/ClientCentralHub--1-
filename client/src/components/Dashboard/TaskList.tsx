@@ -8,13 +8,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -27,6 +20,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { Clock, AlertCircle } from "lucide-react";
 import { format } from "date-fns";
+import { DeadlineHeatmap } from "./DeadlineHeatmap";
 
 type NewTaskInput = {
   title: string;
@@ -83,72 +77,78 @@ export function TaskList() {
 
   if (isLoading) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Tasks</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {[...Array(3)].map((_, i) => (
-              <div
-                key={i}
-                className="h-24 bg-muted animate-pulse rounded-lg"
-              />
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+      <div className="space-y-4">
+        <DeadlineHeatmap />
+        <Card>
+          <CardHeader>
+            <CardTitle>Tasks</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {[...Array(3)].map((_, i) => (
+                <div
+                  key={i}
+                  className="h-24 bg-muted animate-pulse rounded-lg"
+                />
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     );
   }
 
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0">
-        <CardTitle>My Tasks</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="space-y-4">
-          {tasks?.map((task) => (
-            <div
-              key={task.id}
-              className="flex items-center justify-between p-4 border rounded-lg hover:bg-accent/5"
-            >
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <h3 className="font-medium">{task.title}</h3>
-                  {task.priority === "high" && (
-                    <AlertCircle className="w-4 h-4 text-destructive" />
+    <div className="space-y-4">
+      <DeadlineHeatmap />
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0">
+          <CardTitle>My Tasks</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            {tasks?.map((task) => (
+              <div
+                key={task.id}
+                className="flex items-center justify-between p-4 border rounded-lg hover:bg-accent/5"
+              >
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-medium">{task.title}</h3>
+                    {task.priority === "high" && (
+                      <AlertCircle className="w-4 h-4 text-destructive" />
+                    )}
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    {task.description}
+                  </p>
+                  {task.deadline && (
+                    <p className="text-xs text-muted-foreground flex items-center gap-1">
+                      <Clock className="w-3 h-3" />
+                      Due {format(new Date(task.deadline), "PPp")}
+                    </p>
                   )}
                 </div>
-                <p className="text-sm text-muted-foreground">
-                  {task.description}
-                </p>
-                {task.deadline && (
-                  <p className="text-xs text-muted-foreground flex items-center gap-1">
-                    <Clock className="w-3 h-3" />
-                    Due {format(new Date(task.deadline), "PPp")}
-                  </p>
-                )}
+                <Select
+                  value={task.status}
+                  onValueChange={(value) =>
+                    updateTaskMutation.mutate({ id: task.id, status: value })
+                  }
+                >
+                  <SelectTrigger className="w-32">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="pending">Pending</SelectItem>
+                    <SelectItem value="in_progress">In Progress</SelectItem>
+                    <SelectItem value="completed">Completed</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
-              <Select
-                value={task.status}
-                onValueChange={(value) =>
-                  updateTaskMutation.mutate({ id: task.id, status: value })
-                }
-              >
-                <SelectTrigger className="w-32">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="pending">Pending</SelectItem>
-                  <SelectItem value="in_progress">In Progress</SelectItem>
-                  <SelectItem value="completed">Completed</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          ))}
-        </div>
-      </CardContent>
-    </Card>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
   );
 }
