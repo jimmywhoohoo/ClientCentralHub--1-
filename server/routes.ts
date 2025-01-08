@@ -228,39 +228,50 @@ export function registerRoutes(app: Express): Server {
 
     const userId = req.user.id;
 
-    // Get user's recent interactions
-    const recentInteractions = await db.query.documentInteractions.findMany({
-      where: eq(documentInteractions.userId, userId),
-      with: {
-        document: true,
-      },
-      orderBy: desc(documentInteractions.createdAt),
-      limit: 5,
-    });
+    try {
+      // Get user's recent interactions
+      const recentInteractions = await db.query.documentInteractions.findMany({
+        where: eq(documentInteractions.userId, userId),
+        with: {
+          document: true,
+        },
+        orderBy: desc(documentInteractions.createdAt),
+        limit: 5,
+      });
 
-    // Extract categories and industries from user's recent interactions
-    const userPreferences = recentInteractions.reduce((acc, interaction) => {
-      if (interaction.document) {
-        acc.categories.add(interaction.document.category);
-        if (interaction.document.industry) {
-          acc.industries.add(interaction.document.industry);
+      // Extract categories and industries from user's recent interactions
+      const categories = new Set<string>();
+      const industries = new Set<string>();
+
+      recentInteractions.forEach(interaction => {
+        if (interaction.document) {
+          categories.add(interaction.document.category);
+          if (interaction.document.industry) {
+            industries.add(interaction.document.industry);
+          }
         }
-      }
-      return acc;
-    }, { categories: new Set<string>(), industries: new Set<string>() });
+      });
 
-    // Find similar documents based on user preferences
-    const recommendations = await db.query.documents.findMany({
-      where: and(
-        sql`${documents.category} = ANY(${Array.from(userPreferences.categories)})`,
-        sql`${documents.industry} = ANY(${Array.from(userPreferences.industries)})`,
-        sql`${documents.userId} != ${userId}`
-      ),
-      orderBy: desc(documents.accessCount),
-      limit: 5,
-    });
+      // Find similar documents based on user preferences
+      const recommendations = await db.query.documents.findMany({
+        where: and(
+          categories.size > 0 
+            ? sql`${documents.category} IN (${Array.from(categories).join(', ')})`
+            : undefined,
+          industries.size > 0
+            ? sql`${documents.industry} IN (${Array.from(industries).join(', ')})`
+            : undefined,
+          sql`${documents.userId} != ${userId}`
+        ),
+        orderBy: desc(documents.accessCount),
+        limit: 5,
+      });
 
-    res.json(recommendations);
+      res.json(recommendations);
+    } catch (error) {
+      console.error("Error fetching recommendations:", error);
+      res.status(500).send("Failed to fetch recommendations");
+    }
   });
 
   // Document collaborators
