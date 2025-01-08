@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
+import { Shield } from "lucide-react";
 
 export default function AuthPage() {
   const [isLogin, setIsLogin] = useState(true);
@@ -52,14 +53,6 @@ export default function AuthPage() {
         variant: "destructive",
       });
     }
-  };
-
-  const handleAdminLogin = () => {
-    login({ 
-      username: "admin", 
-      password: "admin123" 
-    });
-    setLocation("/");
   };
 
   return (
@@ -146,37 +139,40 @@ export default function AuthPage() {
               {isLogin ? "Login" : "Register"}
             </Button>
           </form>
-          <Button
-            variant="link"
-            className="mt-4 w-full"
-            onClick={() => {
-              setIsLogin(!isLogin);
-              setFormData({
-                username: "",
-                password: "",
-                email: "",
-                fullName: "",
-                companyName: "",
-                address: "",
-              });
-            }}
-          >
-            {isLogin
-              ? "Don't have an account? Register"
-              : "Already have an account? Login"}
-          </Button>
+
+          <div className="mt-4 flex flex-col gap-2">
+            <Button
+              variant="link"
+              className="w-full"
+              onClick={() => {
+                setIsLogin(!isLogin);
+                setFormData({
+                  username: "",
+                  password: "",
+                  email: "",
+                  fullName: "",
+                  companyName: "",
+                  address: "",
+                });
+              }}
+            >
+              {isLogin
+                ? "Don't have an account? Register"
+                : "Already have an account? Login"}
+            </Button>
+
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full"
+              onClick={() => setLocation("/admin/login")}
+            >
+              <Shield className="w-4 h-4 mr-2" />
+              Admin Login
+            </Button>
+          </div>
         </CardContent>
       </Card>
-
-      {/* Admin Login Button */}
-      <Button
-        variant="ghost"
-        size="sm"
-        className="absolute bottom-4 left-4 text-muted-foreground hover:text-primary"
-        onClick={handleAdminLogin}
-      >
-        Admin Login
-      </Button>
     </div>
   );
 }
