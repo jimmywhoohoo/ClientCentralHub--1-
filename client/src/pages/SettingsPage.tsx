@@ -4,17 +4,16 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { ThemeCustomizer } from "../components/Dashboard/ThemeCustomizer";
+import { NotificationPreferencesCard } from "../components/Dashboard/NotificationPreferences";
 import { Input } from "@/components/ui/input";
 import { useUser } from "../hooks/use-user";
 import { useState } from "react";
-import { Switch } from "@/components/ui/switch";
 
 export default function SettingsPage() {
   const { user } = useUser();
   const { toast } = useToast();
   const [email, setEmail] = useState(user?.email || "");
   const [password, setPassword] = useState("");
-  const [emailNotifications, setEmailNotifications] = useState(true);
 
   const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -76,20 +75,7 @@ export default function SettingsPage() {
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Notification Settings</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between">
-                <Label>Email Notifications</Label>
-                <Switch
-                  checked={emailNotifications}
-                  onCheckedChange={setEmailNotifications}
-                />
-              </div>
-            </CardContent>
-          </Card>
+          <NotificationPreferencesCard />
         </div>
       </main>
     </div>

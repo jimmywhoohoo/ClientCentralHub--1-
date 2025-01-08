@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { setupWebSocket } from "./websocket";
 import { db } from "@db";
-import { tasks, users, files, companyProfiles, notificationPreferences } from "@db/schema";
+import { tasks, users, files, companyProfiles, notificationPreferences, notifications } from "@db/schema";
 import { eq, desc, or, asc, and } from "drizzle-orm";
 import { errorHandler, apiErrorLogger } from "./error-handler";
 import { createTaskSchema, updateTaskSchema, updateCompanyProfileSchema, updateNotificationPreferencesSchema } from "@db/schema";
@@ -631,6 +631,68 @@ export function registerRoutes(app: Express): Server {
     } catch (error) {
       console.error("Error fetching task stats:", error);
       res.status(500).json({ error: "Failed to fetch task stats" });
+    }
+  });
+
+  // Notification Routes
+  app.get("/api/notifications", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ error: "Not authenticated" });
+    }
+
+    try {
+      const userNotifications = await db.query.notifications.findMany({
+        where: eq(notifications.userId, req.user.id),
+        orderBy: [desc(notifications.createdAt)],
+        limit: 50,
+      });
+
+      res.json(userNotifications);
+    } catch (error) {
+      console.error("Error fetching notifications:", error);
+      res.status(500).json({ error: "Failed to fetch notifications" });
+    }
+  });
+
+  app.post("/api/notifications/mark-all-read", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ error: "Not authenticated" });
+    }
+
+    try {
+      await db.update(notifications)
+        .set({ read: true })
+        .where(eq(notifications.userId, req.user.id));
+
+      res.json({ message: "All notifications marked as read" });
+    } catch (error) {
+      console.error("Error marking notifications as read:", error);
+      res.status(500).json({ error: "Failed to mark notifications as read" });
+    }
+  });
+
+  app.post("/api/notifications/:id/mark-read", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ error: "Not authenticated" });
+    }
+
+    try {
+      const [notification] = await db.update(notifications)
+        .set({ read: true })
+        .where(and(
+          eq(notifications.id, parseInt(req.params.id)),
+          eq(notifications.userId, req.user.id)
+        ))
+        .returning();
+
+      if (!notification) {
+        return res.status(404).json({ error: "Notification not found" });
+      }
+
+      res.json(notification);
+    } catch (error) {
+      console.error("Error marking notification as read:", error);
+      res.status(500).json({ error: "Failed to mark notification as read" });
     }
   });
 

@@ -2,6 +2,7 @@ import { Link } from "wouter";
 import { useUser } from "@/hooks/use-user";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "./ThemeToggle";
+import { NotificationCenter } from "./NotificationCenter";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 import {
@@ -91,7 +92,10 @@ export function Sidebar() {
         </nav>
 
         <div className="space-y-4">
-          <ThemeToggle />
+          <div className="flex items-center gap-2">
+            <ThemeToggle />
+            <NotificationCenter />
+          </div>
           <Button
             variant="ghost"
             className="w-full justify-start touch-manipulation"

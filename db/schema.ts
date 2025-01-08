@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, boolean, timestamp, jsonb, varchar, date } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, jsonb, varchar } from "drizzle-orm/pg-core";
 import { createInsertSchema, createSelectSchema } from "drizzle-zod";
 import { relations } from "drizzle-orm";
 import { z } from "zod";
@@ -148,6 +148,17 @@ export const taskActivities = pgTable("task_activities", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+export const notifications = pgTable("notifications", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  type: text("type").notNull(),
+  title: text("title").notNull(),
+  message: text("message").notNull(),
+  link: text("link"),
+  read: boolean("read").default(false).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 export const documentRelations = relations(documents, ({ one, many }) => ({
   creator: one(users, {
     fields: [documents.createdBy],
@@ -212,6 +223,7 @@ export const userRelations = relations(users, ({ one, many }) => ({
   documentMessages: many(documentMessages),
   documentComments: many(documentComments),
   achievements: many(userAchievements),
+  notifications: many(notifications),
 }));
 
 export const companyProfileRelations = relations(companyProfiles, ({ one }) => ({
@@ -281,6 +293,13 @@ export const taskActivityRelations = relations(taskActivities, ({ one }) => ({
   }),
   user: one(users, {
     fields: [taskActivities.userId],
+    references: [users.id],
+  }),
+}));
+
+export const notificationRelations = relations(notifications, ({ one }) => ({
+  user: one(users, {
+    fields: [notifications.userId],
     references: [users.id],
   }),
 }));
@@ -357,6 +376,8 @@ export type NotificationPreferences = typeof notificationPreferences.$inferSelec
 export type NewNotificationPreferences = typeof notificationPreferences.$inferInsert;
 export type TaskActivity = typeof taskActivities.$inferSelect;
 export type NewTaskActivity = typeof taskActivities.$inferInsert;
+export type Notification = typeof notifications.$inferSelect;
+export type NewNotification = typeof notifications.$inferInsert;
 
 export const insertUserSchema = createInsertSchema(users);
 export const selectUserSchema = createSelectSchema(users);
