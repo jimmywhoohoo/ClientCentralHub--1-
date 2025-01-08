@@ -69,6 +69,12 @@ export function setupAuth(app: Express) {
         if (!user) {
           return done(null, false, { message: "Incorrect username." });
         }
+
+        // Check if user is active
+        if (!user.active) {
+          return done(null, false, { message: "Account is inactive." });
+        }
+
         const isMatch = await crypto.compare(password, user.password);
         if (!isMatch) {
           return done(null, false, { message: "Incorrect password." });
