@@ -110,8 +110,8 @@ export function registerRoutes(app: Express): Server {
     try {
       const result = updateCompanyProfileSchema.safeParse(req.body);
       if (!result.success) {
-        return res.status(400).json({ 
-          error: "Invalid input: " + result.error.issues.map(i => i.message).join(", ") 
+        return res.status(400).json({
+          error: "Invalid input: " + result.error.issues.map(i => i.message).join(", ")
         });
       }
 
@@ -511,29 +511,52 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Add task routes for clients
+  app.get("/api/tasks", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ error: "Not authenticated" });
+    }
+
+    try {
+      const userTasks = await db.query.tasks.findMany({
+        where: eq(tasks.assignedTo, req.user.id),
+        orderBy: [desc(tasks.createdAt)],
+        with: {
+          assignee: true,
+          assigner: true,
+        },
+      });
+
+      res.json(userTasks);
+    } catch (error) {
+      console.error("Error fetching tasks:", error);
+      res.status(500).json({ error: "Failed to fetch tasks" });
+    }
+  });
+
   app.get("/api/tasks/stats", async (req, res) => {
-    if (!req.isAuthenticated() || req.user.role !== "admin") {
-      return res.status(403).json({ error: "Not authorized" });
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ error: "Not authenticated" });
     }
 
     try {
       const { status, priority, dateRange, search } = req.query;
       const now = new Date();
 
-      let conditions = [];
+      let conditions = [eq(tasks.assignedTo, req.user.id)];
 
       // Add status filter
-      if (status) {
+      if (status && status !== 'all') {
         conditions.push(eq(tasks.status, status as string));
       }
 
       // Add priority filter
-      if (priority) {
+      if (priority && priority !== 'all') {
         conditions.push(eq(tasks.priority, priority as string));
       }
 
       // Add date range filter
-      if (dateRange) {
+      if (dateRange && dateRange !== 'all') {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
@@ -564,9 +587,7 @@ export function registerRoutes(app: Express): Server {
         );
       }
 
-      const whereClause = conditions.length > 0
-        ? and(...conditions)
-        : undefined;
+      const whereClause = and(...conditions);
 
       const [stats] = await db.select({
         pending: sql<number>`COUNT(*) FILTER (WHERE ${tasks.status} = 'pending')`,
@@ -577,28 +598,29 @@ export function registerRoutes(app: Express): Server {
         .where(whereClause);
 
       const upcomingDeadlines = await db.query.tasks.findMany({
-        where: whereClause ? 
-          and(
-            whereClause,
-            or(
-              eq(tasks.status, "pending"),
-              eq(tasks.status, "in_progress")
-            )
-          ) :
+        where: and(
+          whereClause,
           or(
             eq(tasks.status, "pending"),
             eq(tasks.status, "in_progress")
-          ),
+          )
+        ),
         orderBy: [asc(tasks.deadline)],
         limit: 5,
+        with: {
+          assignee: true,
+          assigner: true,
+        },
       });
 
       const recentlyCompleted = await db.query.tasks.findMany({
-        where: whereClause ?
-          and(whereClause, eq(tasks.status, "completed")) :
-          eq(tasks.status, "completed"),
+        where: and(whereClause, eq(tasks.status, "completed")),
         orderBy: [desc(tasks.completedAt)],
         limit: 5,
+        with: {
+          assignee: true,
+          assigner: true,
+        },
       });
 
       res.json({
