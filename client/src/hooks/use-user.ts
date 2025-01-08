@@ -5,7 +5,7 @@ import { useToast } from './use-toast';
 type RequestResult = {
   ok: true;
   message: string;
-  user: Omit<User, "password">;
+  user: User;
 } | {
   ok: false;
   message: string;

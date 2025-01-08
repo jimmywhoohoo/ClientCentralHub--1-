@@ -170,10 +170,15 @@ export function setupAuth(app: Express) {
         }
 
         return res.json({
+          ok: true,
           message: "Login successful",
           user: {
             id: user.id,
             username: user.username,
+            email: user.email,
+            fullName: user.fullName,
+            companyName: user.companyName,
+            address: user.address,
             role: user.role,
           },
         });
