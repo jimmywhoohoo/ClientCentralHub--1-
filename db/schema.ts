@@ -8,30 +8,13 @@ export const users = pgTable("users", {
   username: text("username").unique().notNull(),
   password: text("password").notNull(),
   email: text("email").notNull(),
-  fullName: text("full_name"),
+  fullName: text("full_name").notNull(),
+  companyName: text("company_name").notNull(),
+  address: text("address").notNull(),
   role: text("role").notNull().default("client"),
   active: boolean("active").notNull().default(true),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
-
-// Update the login schema to match our requirements
-export const loginSchema = z.object({
-  username: z.string().min(1, "Username is required"),
-  password: z.string().min(1, "Password is required"),
-});
-
-export const insertUserSchema = createInsertSchema(users, {
-  username: z.string().min(1, "Username is required"),
-  password: z.string().min(6, "Password must be at least 6 characters"),
-  email: z.string().email("Invalid email address"),
-  role: z.enum(["admin", "client"]).default("client"),
-});
-
-export const selectUserSchema = createSelectSchema(users);
-
-export type User = typeof users.$inferSelect;
-export type NewUser = typeof users.$inferInsert;
-export type LoginInput = z.infer<typeof loginSchema>;
 
 export const companyProfiles = pgTable("company_profiles", {
   id: serial("id").primaryKey(),
@@ -86,8 +69,6 @@ export const files = pgTable("files", {
   uploadedAt: timestamp("uploaded_at").defaultNow().notNull(),
   description: text("description"),
   isArchived: boolean("is_archived").default(false),
-  googleDriveId: text("google_drive_id"),
-  googleDriveLink: text("google_drive_link"),
 });
 
 export const tasks = pgTable("tasks", {
@@ -176,15 +157,6 @@ export const notifications = pgTable("notifications", {
   link: text("link"),
   read: boolean("read").default(false).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
-});
-
-export const systemSettings = pgTable("system_settings", {
-  id: serial("id").primaryKey(),
-  key: text("key").unique().notNull(),
-  value: text("value").notNull(),
-  description: text("description"),
-  updatedBy: integer("updated_by").references(() => users.id),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
 export const documentRelations = relations(documents, ({ one, many }) => ({
@@ -332,12 +304,11 @@ export const notificationRelations = relations(notifications, ({ one }) => ({
   }),
 }));
 
-export const systemSettingsRelations = relations(systemSettings, ({ one }) => ({
-  updatedByUser: one(users, {
-    fields: [systemSettings.updatedBy],
-    references: [users.id],
-  }),
-}));
+
+export const loginSchema = z.object({
+  username: z.string().min(1, "Username is required"),
+  password: z.string().min(1, "Password is required"),
+});
 
 export const createDocumentSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -378,6 +349,8 @@ export const createDocumentCommentSchema = z.object({
   parentId: z.number().optional(),
 });
 
+export type User = typeof users.$inferSelect;
+export type NewUser = typeof users.$inferInsert;
 export type Document = typeof documents.$inferSelect;
 export type NewDocument = typeof documents.$inferInsert;
 export type DocumentMessage = typeof documentMessages.$inferSelect;
@@ -388,6 +361,7 @@ export type Task = typeof tasks.$inferSelect;
 export type NewTask = typeof tasks.$inferInsert;
 export type File = typeof files.$inferSelect;
 export type NewFile = typeof files.$inferInsert;
+export type LoginInput = z.infer<typeof loginSchema>;
 export type CompanyProfile = typeof companyProfiles.$inferSelect;
 export type NewCompanyProfile = typeof companyProfiles.$inferInsert;
 export type DocumentComment = typeof documentComments.$inferSelect;
@@ -404,9 +378,9 @@ export type TaskActivity = typeof taskActivities.$inferSelect;
 export type NewTaskActivity = typeof taskActivities.$inferInsert;
 export type Notification = typeof notifications.$inferSelect;
 export type NewNotification = typeof notifications.$inferInsert;
-export type SystemSetting = typeof systemSettings.$inferSelect;
-export type NewSystemSetting = typeof systemSettings.$inferInsert;
 
+export const insertUserSchema = createInsertSchema(users);
+export const selectUserSchema = createSelectSchema(users);
 export const insertDocumentSchema = createInsertSchema(documents);
 export const selectDocumentSchema = createSelectSchema(documents);
 export const insertFileSchema = createInsertSchema(files);
@@ -421,8 +395,6 @@ export const insertUserAchievementSchema = createInsertSchema(userAchievements);
 export const selectUserAchievementSchema = createSelectSchema(userAchievements);
 export const insertNotificationPreferencesSchema = createInsertSchema(notificationPreferences);
 export const selectNotificationPreferencesSchema = createSelectSchema(notificationPreferences);
-export const insertSystemSettingSchema = createInsertSchema(systemSettings);
-export const selectSystemSettingSchema = createSelectSchema(systemSettings);
 
 export const updateNotificationPreferencesSchema = z.object({
   emailNotifications: z.boolean(),
@@ -433,10 +405,4 @@ export const updateNotificationPreferencesSchema = z.object({
   achievementUnlocks: z.boolean(),
   dailyDigest: z.boolean(),
   weeklyDigest: z.boolean(),
-});
-
-export const updateSystemSettingSchema = z.object({
-  key: z.string(),
-  value: z.string(),
-  description: z.string().optional(),
 });

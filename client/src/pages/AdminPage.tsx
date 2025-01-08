@@ -53,7 +53,6 @@ import { TaskDashboard } from "../components/Dashboard/TaskDashboard";
 import { FileShareDialog } from "../components/Dashboard/FileShareDialog";
 import { UserTaskDetails } from "../components/Dashboard/UserTaskDetails";
 import {Label} from "@/components/ui/label" // Added import for Label
-import { GoogleDriveSettings } from "../components/Dashboard/GoogleDriveSettings";
 
 
 type FileWithUploader = File & {
@@ -397,8 +396,8 @@ export default function AdminPage() {
             </div>
           </div>
 
-          <GoogleDriveSettings />
           <TaskDashboard />
+
           <Card>
             <CardHeader>
               <CardTitle>User Management</CardTitle>
@@ -960,7 +959,13 @@ export default function AdminPage() {
                     <dt className="text-sm text-muted-foreground">Company</dt>
                     <dd>{selectedFile?.uploader.companyName}</dd>
                   </div>
-
+                  <div>
+                    <dt className="textsm text-muted-foreground">Status</dt>
+                    <dd>                    <Badge variant={selectedFile?.isArchived ? "secondary" : "default"}>
+                      {selectedFile?.isArchived ? "Archived" : "Active"}
+                    </Badge>
+                    </dd>
+                  </div>
                 </dl>
               </div>
             </div>

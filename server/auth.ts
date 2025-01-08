@@ -5,7 +5,7 @@ import session from "express-session";
 import createMemoryStore from "memorystore";
 import { scrypt, randomBytes, timingSafeEqual } from "crypto";
 import { promisify } from "util";
-import { users, loginSchema, type User as SelectUser } from "@db/schema";
+import { users, insertUserSchema, loginSchema, type User as SelectUser } from "@db/schema";
 import { db } from "@db";
 import { eq } from "drizzle-orm";
 
@@ -34,35 +34,7 @@ declare global {
   }
 }
 
-// Create admin user if it doesn't exist
-async function ensureAdminExists() {
-  try {
-    const [adminUser] = await db
-      .select()
-      .from(users)
-      .where(eq(users.username, "admin"))
-      .limit(1);
-
-    if (!adminUser) {
-      const hashedPassword = await crypto.hash("admin123");
-      await db.insert(users).values({
-        username: "admin",
-        password: hashedPassword,
-        email: "admin@example.com",
-        role: "admin",
-        fullName: "System Administrator",
-      });
-      console.log("Admin user created successfully");
-    }
-  } catch (error) {
-    console.error("Error ensuring admin exists:", error);
-  }
-}
-
 export function setupAuth(app: Express) {
-  // Create admin user on startup
-  ensureAdminExists();
-
   const MemoryStore = createMemoryStore(session);
   const sessionSettings: session.SessionOptions = {
     secret: process.env.REPL_ID || "secure-client-portal",
@@ -134,9 +106,9 @@ export function setupAuth(app: Express) {
   app.post("/api/login", (req, res, next) => {
     const result = loginSchema.safeParse(req.body);
     if (!result.success) {
-      return res.status(400).json({
+      return res.status(400).json({ 
         ok: false,
-        message: result.error.issues.map((i) => i.message).join(", "),
+        message: result.error.issues.map(i => i.message).join(", ") 
       });
     }
 
@@ -146,9 +118,9 @@ export function setupAuth(app: Express) {
       }
 
       if (!user) {
-        return res.status(400).json({
+        return res.status(400).json({ 
           ok: false,
-          message: info.message ?? "Login failed",
+          message: info.message ?? "Login failed"
         });
       }
 
@@ -162,13 +134,14 @@ export function setupAuth(app: Express) {
           id: user.id,
           username: user.username,
           email: user.email,
+          fullName: user.fullName,
           role: user.role,
         };
 
         return res.json({
           ok: true,
           message: "Login successful",
-          user: safeUser,
+          user: safeUser
         });
       });
     })(req, res, next);
@@ -177,14 +150,14 @@ export function setupAuth(app: Express) {
   app.post("/api/logout", (req, res) => {
     req.logout((err) => {
       if (err) {
-        return res.status(500).json({
+        return res.status(500).json({ 
           ok: false,
-          message: "Logout failed",
+          message: "Logout failed" 
         });
       }
-      res.json({
-        ok: true,
-        message: "Logout successful",
+      res.json({ 
+        ok: true, 
+        message: "Logout successful" 
       });
     });
   });
@@ -197,13 +170,14 @@ export function setupAuth(app: Express) {
         id: user.id,
         username: user.username,
         email: user.email,
+        fullName: user.fullName,
         role: user.role,
       };
       return res.json(safeUser);
     }
-    res.status(401).json({
+    res.status(401).json({ 
       ok: false,
-      message: "Not logged in",
+      message: "Not logged in" 
     });
   });
 }

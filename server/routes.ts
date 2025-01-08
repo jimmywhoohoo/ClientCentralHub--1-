@@ -3,16 +3,15 @@ import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { setupWebSocket } from "./websocket";
 import { db } from "@db";
-import { tasks, users, files, companyProfiles, notificationPreferences, notifications, taskActivities, achievements, userAchievements, documentComments, systemSettings } from "@db/schema";
+import { tasks, users, files, companyProfiles, notificationPreferences, notifications, taskActivities, achievements, userAchievements, documentComments } from "@db/schema";
 import { eq, desc, or, asc, and, not, exists } from "drizzle-orm";
 import { errorHandler, apiErrorLogger } from "./error-handler";
-import { createTaskSchema, updateTaskSchema, updateCompanyProfileSchema, updateNotificationPreferencesSchema, updateSystemSettingSchema } from "@db/schema";
+import { createTaskSchema, updateTaskSchema, updateCompanyProfileSchema, updateNotificationPreferencesSchema } from "@db/schema";
 import { sql } from "drizzle-orm";
 import { generateThumbnail } from './services/thumbnail';
 import path from 'path';
 import multer from 'multer';
 import fs from 'fs/promises';
-import { uploadToGoogleDrive } from './services/googleDrive';
 
 // Configure multer for file upload
 const storage = multer.diskStorage({
@@ -38,81 +37,6 @@ export function registerRoutes(app: Express): Server {
 
   // Add error logging middleware
   app.use(apiErrorLogger);
-
-  // System Settings Routes
-  app.get("/api/admin/settings", async (req, res) => {
-    if (!req.isAuthenticated() || req.user.role !== "admin") {
-      return res.status(403).json({ error: "Not authorized" });
-    }
-
-    try {
-      const settings = await db.query.systemSettings.findMany({
-        with: {
-          updatedByUser: true
-        },
-        orderBy: [asc(systemSettings.key)]
-      });
-
-      res.json(settings);
-    } catch (error) {
-      console.error("Error fetching settings:", error);
-      res.status(500).json({ error: "Failed to fetch settings" });
-    }
-  });
-
-  app.put("/api/admin/settings/:key", async (req, res) => {
-    if (!req.isAuthenticated() || req.user.role !== "admin") {
-      return res.status(403).json({ error: "Not authorized" });
-    }
-
-    try {
-      const { key } = req.params;
-      const result = updateSystemSettingSchema.safeParse(req.body);
-
-      if (!result.success) {
-        return res.status(400).json({
-          error: "Invalid input: " + result.error.issues.map(i => i.message).join(", ")
-        });
-      }
-
-      // Check if setting exists
-      const [existingSetting] = await db.select()
-        .from(systemSettings)
-        .where(eq(systemSettings.key, key))
-        .limit(1);
-
-      if (existingSetting) {
-        // Update existing setting
-        const [updated] = await db.update(systemSettings)
-          .set({
-            value: result.data.value,
-            description: result.data.description,
-            updatedBy: req.user.id,
-            updatedAt: new Date()
-          })
-          .where(eq(systemSettings.key, key))
-          .returning();
-
-        res.json(updated);
-      } else {
-        // Create new setting
-        const [created] = await db.insert(systemSettings)
-          .values({
-            key: key,
-            value: result.data.value,
-            description: result.data.description,
-            updatedBy: req.user.id,
-            updatedAt: new Date()
-          })
-          .returning();
-
-        res.json(created);
-      }
-    } catch (error) {
-      console.error("Error updating setting:", error);
-      res.status(500).json({ error: "Failed to update setting" });
-    }
-  });
 
   // Company Profile Routes
   app.get("/api/company-profile", async (req, res) => {
@@ -524,7 +448,7 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Handle file upload with thumbnail generation and Google Drive upload
+  // Handle file upload with thumbnail generation
   app.post("/api/files/upload", upload.single('file'), async (req, res) => {
     if (!req.isAuthenticated()) {
       return res.status(401).json({ error: "Not authenticated" });
@@ -537,23 +461,6 @@ export function registerRoutes(app: Express): Server {
 
       const thumbnailPath = await generateThumbnail(req.file.path);
 
-      // Try to upload to Google Drive if configured
-      let googleDriveId = null;
-      let googleDriveLink = null;
-
-      try {
-        const driveResult = await uploadToGoogleDrive(
-          req.file.path,
-          req.file.mimetype,
-          req.file.originalname
-        );
-        googleDriveId = driveResult.fileId;
-        googleDriveLink = driveResult.webViewLink;
-      } catch (driveError) {
-        // Log error but continue since local upload might still work
-        console.error("Google Drive upload failed:", driveError);
-      }
-
       const [file] = await db.insert(files)
         .values({
           fileName: req.file.originalname,
@@ -562,8 +469,6 @@ export function registerRoutes(app: Express): Server {
           path: req.file.path,
           thumbnailPath,
           uploadedBy: req.user.id,
-          googleDriveId,
-          googleDriveLink,
         })
         .returning();
 
@@ -865,7 +770,7 @@ export function registerRoutes(app: Express): Server {
       // Check for achievements if task is completed
       if (result.data.status === 'completed' && currentTask.status !== 'completed') {
         // Get all task-related achievements
-        const taskAchievements = await db.query.achievements.findMany({
+        const allAchievements = await db.query.achievements.findMany({
           where: eq(achievements.category, 'tasks'),
         });
 
@@ -875,8 +780,8 @@ export function registerRoutes(app: Express): Server {
         });
 
         // Get completed tasks count
-        const [completedTasks] = await db
-          .select({ count: sql<number>`count(*)` })
+        const [completedTasksResult] = await db
+          .select({ count: sql<number>`count(*)::integer` })
           .from(tasks)
           .where(
             and(
@@ -885,24 +790,24 @@ export function registerRoutes(app: Express): Server {
             )
           );
 
+        const completedTasksCount = completedTasksResult?.count || 0;
+
         // Check each achievement
-        for (const achievement of taskAchievements) {
+        for (const achievement of allAchievements) {
           // Skip if already unlocked
           if (unlockedAchievements.some(ua => ua.achievementId === achievement.id)) {
             continue;
           }
 
           const criteria = achievement.criteria as Record<string, any>;
-          if (criteria?.tasksCompleted && completedTasks[0]?.count && completedTasks[0].count >= criteria.tasksCompleted) {
+          if (criteria?.tasksCompleted && completedTasksCount >= criteria.tasksCompleted) {
             // Unlock the achievement
             await db.insert(userAchievements)
               .values({
                 userId: req.user.id,
                 achievementId: achievement.id,
                 unlockedAt: new Date(),
-                progress: {
-                  completedTasks: completedTasks[0].count,
-                },
+                progress: completedTasksCount,
               });
 
             // Create notification for achievement unlock
