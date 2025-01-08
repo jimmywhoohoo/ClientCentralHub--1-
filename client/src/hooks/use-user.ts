@@ -25,16 +25,13 @@ async function handleRequest(
       credentials: "include",
     });
 
-    if (!response.ok) {
-      if (response.status >= 500) {
-        return { ok: false, message: response.statusText };
-      }
+    const data = await response.json();
 
-      const message = await response.text();
-      return { ok: false, message };
+    if (!response.ok) {
+      return { ok: false, message: data.message || response.statusText };
     }
 
-    return response.json();
+    return data;
   } catch (e: any) {
     return { ok: false, message: e.toString() };
   }

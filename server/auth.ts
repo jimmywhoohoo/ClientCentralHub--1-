@@ -97,63 +97,13 @@ export function setupAuth(app: Express) {
     }
   });
 
-  app.post("/api/register", async (req, res, next) => {
-    try {
-      const result = insertUserSchema.safeParse(req.body);
-      if (!result.success) {
-        return res
-          .status(400)
-          .json({ error: result.error.issues.map(i => i.message).join(", ") });
-      }
-
-      const { username, password, email, fullName, companyName, address } = result.data;
-
-      const [existingUser] = await db
-        .select()
-        .from(users)
-        .where(eq(users.username, username))
-        .limit(1);
-
-      if (existingUser) {
-        return res.status(400).json({ error: "Username already exists" });
-      }
-
-      const hashedPassword = await crypto.hash(password);
-
-      const [newUser] = await db
-        .insert(users)
-        .values({
-          username,
-          password: hashedPassword,
-          email,
-          fullName,
-          companyName,
-          address,
-          role: "client",
-        })
-        .returning();
-
-      req.login(newUser, (err) => {
-        if (err) {
-          return next(err);
-        }
-        return res.json({
-          ok: true,
-          message: "Registration successful",
-          user: newUser
-        });
-      });
-    } catch (error) {
-      next(error);
-    }
-  });
-
   app.post("/api/login", (req, res, next) => {
     const result = loginSchema.safeParse(req.body);
     if (!result.success) {
-      return res
-        .status(400)
-        .json({ error: result.error.issues.map(i => i.message).join(", ") });
+      return res.status(400).json({ 
+        ok: false,
+        message: result.error.issues.map(i => i.message).join(", ") 
+      });
     }
 
     passport.authenticate("local", (err: any, user: Express.User, info: IVerifyOptions) => {
@@ -162,7 +112,10 @@ export function setupAuth(app: Express) {
       }
 
       if (!user) {
-        return res.status(400).json({ error: info.message ?? "Login failed" });
+        return res.status(400).json({ 
+          ok: false,
+          message: info.message ?? "Login failed"
+        });
       }
 
       req.logIn(user, (err) => {
@@ -170,10 +123,19 @@ export function setupAuth(app: Express) {
           return next(err);
         }
 
+        // Only send necessary user data
+        const safeUser = {
+          id: user.id,
+          username: user.username,
+          email: user.email,
+          fullName: user.fullName,
+          role: user.role,
+        };
+
         return res.json({
           ok: true,
           message: "Login successful",
-          user
+          user: safeUser
         });
       });
     })(req, res, next);
@@ -182,16 +144,34 @@ export function setupAuth(app: Express) {
   app.post("/api/logout", (req, res) => {
     req.logout((err) => {
       if (err) {
-        return res.status(500).json({ error: "Logout failed" });
+        return res.status(500).json({ 
+          ok: false,
+          message: "Logout failed" 
+        });
       }
-      res.json({ ok: true, message: "Logout successful" });
+      res.json({ 
+        ok: true, 
+        message: "Logout successful" 
+      });
     });
   });
 
   app.get("/api/user", (req, res) => {
     if (req.isAuthenticated()) {
-      return res.json(req.user);
+      const user = req.user;
+      // Only send necessary user data
+      const safeUser = {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        fullName: user.fullName,
+        role: user.role,
+      };
+      return res.json(safeUser);
     }
-    res.status(401).json({ error: "Not logged in" });
+    res.status(401).json({ 
+      ok: false,
+      message: "Not logged in" 
+    });
   });
 }
