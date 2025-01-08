@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { setupWebSocket } from "./websocket";
 import { db } from "@db";
-import { tasks, users } from "@db/schema";
+import { tasks, users, files } from "@db/schema";
 import { eq, desc, or, asc } from "drizzle-orm";
 import { errorHandler, apiErrorLogger } from "./error-handler";
 import { createTaskSchema, updateTaskSchema } from "@db/schema";
@@ -76,6 +76,44 @@ export function registerRoutes(app: Express): Server {
     } catch (error) {
       console.error("Error updating user:", error);
       res.status(500).json({ error: "Failed to update user" });
+    }
+  });
+
+  // File Management Routes
+  app.get("/api/admin/files", async (req, res) => {
+    if (!req.isAuthenticated() || req.user.role !== "admin") {
+      return res.status(403).json({ error: "Not authorized" });
+    }
+
+    try {
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = parseInt(req.query.limit as string) || 10;
+      const offset = (page - 1) * limit;
+
+      const allFiles = await db.query.files.findMany({
+        with: {
+          uploader: true,
+        },
+        orderBy: [desc(files.uploadedAt)],
+        limit,
+        offset,
+      });
+
+      const totalFiles = await db.select({ count: sql<number>`count(*)` })
+        .from(files);
+
+      res.json({
+        files: allFiles,
+        pagination: {
+          total: totalFiles[0].count,
+          page,
+          limit,
+          pages: Math.ceil(totalFiles[0].count / limit),
+        },
+      });
+    } catch (error) {
+      console.error("Error fetching files:", error);
+      res.status(500).json({ error: "Failed to fetch files" });
     }
   });
 

@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/select";
 import { useUser } from "../hooks/use-user";
 import { useLocation } from "wouter";
-import type { User, Document } from "@db/schema";
+import type { User, Document, File } from "@db/schema";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -43,6 +43,16 @@ type PaginatedResponse = {
   };
 };
 
+type PaginatedFileResponse = {
+  files: (File & { uploader: User })[];
+  pagination: {
+    total: number;
+    page: number;
+    limit: number;
+    pages: number;
+  };
+};
+
 export default function AdminPage() {
   const { user } = useUser();
   const [, setLocation] = useLocation();
@@ -51,6 +61,7 @@ export default function AdminPage() {
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const [fileListPage, setFileListPage] = useState(1);
 
   const { data, isLoading: loadingUsers } = useQuery<PaginatedResponse>({
     queryKey: ["/api/admin/users", page],
@@ -94,7 +105,7 @@ export default function AdminPage() {
     return null;
   }
 
-  const filteredUsers = data?.users.filter(user => 
+  const filteredUsers = data?.users.filter(user =>
     user.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
     user.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
     user.fullName.toLowerCase().includes(searchQuery.toLowerCase())
@@ -105,9 +116,15 @@ export default function AdminPage() {
     enabled: user?.role === "admin",
   });
 
-  const recentDocuments = documents?.sort((a, b) => 
+  const recentDocuments = documents?.sort((a, b) =>
     new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
   ).slice(0, 5);
+
+  const { data: fileData, isLoading: loadingFiles } = useQuery<PaginatedFileResponse>({
+    queryKey: ["/api/admin/files", fileListPage],
+    enabled: user?.role === "admin",
+  });
+
 
   return (
     <div className="flex min-h-screen bg-background">
@@ -198,6 +215,77 @@ export default function AdminPage() {
                           variant={page === i + 1 ? "default" : "outline"}
                           size="sm"
                           onClick={() => setPage(i + 1)}
+                        >
+                          {i + 1}
+                        </Button>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Uploaded Files</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {loadingFiles ? (
+                <div className="space-y-2">
+                  {[...Array(5)].map((_, i) => (
+                    <Skeleton key={i} className="h-12 w-full" />
+                  ))}
+                </div>
+              ) : (
+                <>
+                  <div className="rounded-md border">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>File Name</TableHead>
+                          <TableHead>Type</TableHead>
+                          <TableHead>Size</TableHead>
+                          <TableHead>Uploaded By</TableHead>
+                          <TableHead>Upload Date</TableHead>
+                          <TableHead>Status</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {fileData?.files.map((file) => (
+                          <TableRow key={file.id} className="hover:bg-muted/50">
+                            <TableCell className="font-medium">
+                              {file.fileName}
+                            </TableCell>
+                            <TableCell>{file.fileType}</TableCell>
+                            <TableCell>
+                              {formatFileSize(file.fileSize)}
+                            </TableCell>
+                            <TableCell>{file.uploader.username}</TableCell>
+                            <TableCell>
+                              {new Date(file.uploadedAt).toLocaleDateString()}
+                            </TableCell>
+                            <TableCell>
+                              <span className={`px-2 py-1 rounded-full text-xs ${
+                                file.isArchived ? "bg-yellow-100 text-yellow-800" : "bg-green-100 text-green-800"
+                              }`}>
+                                {file.isArchived ? "Archived" : "Active"}
+                              </span>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+
+                  {fileData && fileData.pagination.pages > 1 && (
+                    <div className="flex justify-center gap-2 mt-4">
+                      {[...Array(fileData.pagination.pages)].map((_, i) => (
+                        <Button
+                          key={i}
+                          variant={fileListPage === i + 1 ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => setFileListPage(i + 1)}
                         >
                           {i + 1}
                         </Button>
@@ -315,4 +403,17 @@ export default function AdminPage() {
       </Dialog>
     </div>
   );
+}
+
+function formatFileSize(bytes: number): string {
+  const units = ['B', 'KB', 'MB', 'GB'];
+  let size = bytes;
+  let unitIndex = 0;
+
+  while (size >= 1024 && unitIndex < units.length - 1) {
+    size /= 1024;
+    unitIndex++;
+  }
+
+  return `${size.toFixed(1)} ${units[unitIndex]}`;
 }

@@ -16,6 +16,26 @@ export const users = pgTable("users", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+export const files = pgTable("files", {
+  id: serial("id").primaryKey(),
+  fileName: text("file_name").notNull(),
+  fileType: text("file_type").notNull(),
+  fileSize: integer("file_size").notNull(),
+  path: text("path").notNull(),
+  uploadedBy: integer("uploaded_by").references(() => users.id),
+  uploadedAt: timestamp("uploaded_at").defaultNow().notNull(),
+  description: text("description"),
+  isArchived: boolean("is_archived").default(false),
+});
+
+// File relations
+export const fileRelations = relations(files, ({ one }) => ({
+  uploader: one(users, {
+    fields: [files.uploadedBy],
+    references: [users.id],
+  }),
+}));
+
 export const tasks = pgTable("tasks", {
   id: serial("id").primaryKey(),
   title: text("title").notNull(),
@@ -42,10 +62,11 @@ export const taskRelations = relations(tasks, ({ one }) => ({
   }),
 }));
 
-// User relations
+// User relations with files and tasks
 export const userRelations = relations(users, ({ many }) => ({
   assignedTasks: many(tasks, { relationName: "assignee" }),
   createdTasks: many(tasks, { relationName: "assigner" }),
+  uploadedFiles: many(files),
 }));
 
 export const loginSchema = z.object({
@@ -70,6 +91,10 @@ export type NewUser = typeof users.$inferInsert;
 export type Task = typeof tasks.$inferSelect;
 export type NewTask = typeof tasks.$inferInsert;
 export type LoginInput = z.infer<typeof loginSchema>;
+export type File = typeof files.$inferSelect;
+export type NewFile = typeof files.$inferInsert;
 
 export const insertUserSchema = createInsertSchema(users);
 export const selectUserSchema = createSelectSchema(users);
+export const insertFileSchema = createInsertSchema(files);
+export const selectFileSchema = createSelectSchema(files);
