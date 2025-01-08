@@ -137,13 +137,13 @@ export function TaskErrorDialog({
   const fix = getSuggestedFix(error);
 
   return (
-    <Dialog open={!!error} onOpenChange={() => onClose()}>
+    <Dialog open={!!error} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <div className="flex flex-col items-center gap-4 mb-4">
             <AnimatePresence mode="wait">
               <motion.div
-                key={error?.type} //Added ? to handle potential null error.type
+                key={error.type}
                 initial={{ scale: 0 }}
                 animate={{ scale: 1 }}
                 exit={{ scale: 0 }}
