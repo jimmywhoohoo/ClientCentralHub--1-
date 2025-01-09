@@ -14,7 +14,6 @@ async function hashPassword(password: string) {
 
 async function createAdminUser() {
   console.log("Starting admin user creation...");
-  const hashedPassword = await hashPassword("admin123");
 
   try {
     // First check if admin already exists
@@ -28,7 +27,9 @@ async function createAdminUser() {
       return;
     }
 
-    const newUser = await db.insert(users)
+    const hashedPassword = await hashPassword("admin123");
+
+    const [newUser] = await db.insert(users)
       .values({
         username: "admin",
         password: hashedPassword,
@@ -38,13 +39,12 @@ async function createAdminUser() {
         role: "admin",
         active: true,
       })
-      .returning()
-      .execute();
+      .returning();
 
-    console.log("Admin user created successfully:", newUser[0]);
+    console.log("Admin user created successfully:", newUser);
   } catch (error) {
     console.error("Error creating admin user:", error);
-    throw error;
+    process.exit(1);
   }
 }
 
