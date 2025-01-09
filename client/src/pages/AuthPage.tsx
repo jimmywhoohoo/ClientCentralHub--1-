@@ -8,10 +8,19 @@ import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
 import { Shield } from "lucide-react";
 
+type FormData = {
+  username: string;
+  password: string;
+  email: string;
+  fullName: string;
+  companyName: string;
+  address: string;
+};
+
 export default function AuthPage() {
   const [isLogin, setIsLogin] = useState(true);
   const [, setLocation] = useLocation();
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<FormData>({
     username: "",
     password: "",
     email: "",
@@ -19,7 +28,7 @@ export default function AuthPage() {
     companyName: "",
     address: "",
   });
-  const { login, user } = useUser();
+  const { login, register, user } = useUser();
   const { toast } = useToast();
 
   // Redirect if already authenticated
@@ -41,10 +50,13 @@ export default function AuthPage() {
           username: formData.username, 
           password: formData.password 
         });
-        setLocation("/");
       } else {
         await register(formData);
-        setLocation("/");
+        toast({
+          title: "Success",
+          description: "Registration successful! You can now log in.",
+        });
+        setIsLogin(true);
       }
     } catch (error: any) {
       toast({

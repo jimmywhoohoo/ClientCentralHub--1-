@@ -8,6 +8,15 @@ type LoginCredentials = {
   password: string;
 };
 
+type RegisterData = {
+  username: string;
+  password: string;
+  email: string;
+  fullName: string;
+  companyName: string;
+  address?: string;
+};
+
 type AuthResponse = {
   ok: boolean;
   message: string;
@@ -17,7 +26,7 @@ type AuthResponse = {
 async function handleAuthRequest(
   url: string, 
   method: string,
-  body?: LoginCredentials
+  body?: LoginCredentials | RegisterData
 ): Promise<AuthResponse> {
   try {
     const response = await fetch(url, {
@@ -28,12 +37,14 @@ async function handleAuthRequest(
     });
 
     const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.message || response.statusText);
+    }
+
     return data;
   } catch (error) {
-    return { 
-      ok: false, 
-      message: error instanceof Error ? error.message : 'An error occurred' 
-    };
+    throw error instanceof Error ? error : new Error('An error occurred');
   }
 }
 
@@ -91,6 +102,27 @@ export function useUser() {
     },
   });
 
+  const registerMutation = useMutation({
+    mutationFn: async (data: RegisterData) => {
+      const result = await handleAuthRequest('/api/register', 'POST', data);
+      if (!result.ok) throw new Error(result.message);
+      return result;
+    },
+    onSuccess: (data) => {
+      toast({
+        title: "Success",
+        description: data.message,
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   const logoutMutation = useMutation({
     mutationFn: async () => {
       const result = await handleAuthRequest('/api/logout', 'POST');
@@ -119,6 +151,7 @@ export function useUser() {
     isLoading,
     error,
     login: loginMutation.mutate,
+    register: registerMutation.mutate,
     logout: logoutMutation.mutate,
   };
 }

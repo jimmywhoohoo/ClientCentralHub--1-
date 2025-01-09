@@ -103,6 +103,68 @@ export function setupAuth(app: Express) {
     }
   });
 
+  // Add registration endpoint
+  app.post("/api/register", async (req, res) => {
+    try {
+      const result = insertUserSchema.safeParse(req.body);
+      if (!result.success) {
+        return res.status(400).json({
+          ok: false,
+          message: result.error.issues.map(i => i.message).join(", ")
+        });
+      }
+
+      const { username, password, email, fullName, companyName } = result.data;
+
+      // Check if username already exists
+      const [existingUser] = await db.select()
+        .from(users)
+        .where(eq(users.username, username))
+        .limit(1);
+
+      if (existingUser) {
+        return res.status(400).json({
+          ok: false,
+          message: "Username already exists"
+        });
+      }
+
+      // Hash password
+      const hashedPassword = await crypto.hash(password);
+
+      // Create new user
+      const [newUser] = await db.insert(users)
+        .values({
+          username,
+          password: hashedPassword,
+          email,
+          fullName,
+          companyName,
+          role: 'user',
+          active: true,
+        })
+        .returning();
+
+      res.json({
+        ok: true,
+        message: "Registration successful",
+        user: {
+          id: newUser.id,
+          username: newUser.username,
+          email: newUser.email,
+          fullName: newUser.fullName,
+          role: newUser.role,
+        }
+      });
+    } catch (error) {
+      console.error("Registration error:", error);
+      res.status(500).json({
+        ok: false,
+        message: "Registration failed"
+      });
+    }
+  });
+
   app.post("/api/login", (req, res, next) => {
     const result = loginSchema.safeParse(req.body);
     if (!result.success) {
@@ -129,19 +191,16 @@ export function setupAuth(app: Express) {
           return next(err);
         }
 
-        // Only send necessary user data
-        const safeUser = {
-          id: user.id,
-          username: user.username,
-          email: user.email,
-          fullName: user.fullName,
-          role: user.role,
-        };
-
         return res.json({
           ok: true,
           message: "Login successful",
-          user: safeUser
+          user: {
+            id: user.id,
+            username: user.username,
+            email: user.email,
+            fullName: user.fullName,
+            role: user.role,
+          }
         });
       });
     })(req, res, next);
