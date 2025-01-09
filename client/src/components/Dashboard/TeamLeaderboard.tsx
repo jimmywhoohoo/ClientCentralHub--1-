@@ -34,10 +34,8 @@ export function TeamLeaderboard() {
   useEffect(() => {
     if (!user) return;
 
-    // Get the current host (without any path)
     const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsUrl = `${wsProtocol}//${window.location.host}/ws`;
-    console.log('Connecting to WebSocket:', wsUrl);
 
     const websocket = new WebSocket(wsUrl);
 
@@ -83,7 +81,6 @@ export function TeamLeaderboard() {
 
     setWs(websocket);
 
-    // Cleanup function
     return () => {
       if (websocket.readyState === WebSocket.OPEN || websocket.readyState === WebSocket.CONNECTING) {
         websocket.close();
