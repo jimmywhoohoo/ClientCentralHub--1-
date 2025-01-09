@@ -1,6 +1,6 @@
-import { pgTable, text, serial, integer, boolean, timestamp, jsonb, varchar } from "drizzle-orm/pg-core";
-import { createInsertSchema, createSelectSchema } from "drizzle-zod";
+import { pgTable, text, serial, integer, boolean, timestamp, jsonb } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
+import { createInsertSchema, createSelectSchema } from "drizzle-zod";
 import { z } from "zod";
 
 export const users = pgTable("users", {
@@ -10,7 +10,6 @@ export const users = pgTable("users", {
   email: text("email").notNull(),
   fullName: text("full_name").notNull(),
   companyName: text("company_name").notNull(),
-  address: text("address").notNull(),
   role: text("role").notNull().default("client"),
   active: boolean("active").notNull().default(true),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -92,7 +91,7 @@ export const documentComments = pgTable("document_comments", {
   content: text("content").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   selectionRange: jsonb("selection_range").notNull(),
-  mentions: varchar("mentions").array(),
+  mentions: text("mentions").array(),
   parentId: integer("parent_id").references(() => documentComments.id),
   resolved: boolean("resolved").default(false),
 });
@@ -158,6 +157,18 @@ export const notifications = pgTable("notifications", {
   read: boolean("read").default(false).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
+
+export const teamPerformance = pgTable("team_performance", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  tasksCompleted: integer("tasks_completed").notNull().default(0),
+  onTimeCompletion: integer("on_time_completion").notNull().default(0),
+  documentComments: integer("document_comments").notNull().default(0),
+  collaborationScore: integer("collaboration_score").notNull().default(0),
+  totalScore: integer("total_score").notNull().default(0),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 
 export const documentRelations = relations(documents, ({ one, many }) => ({
   creator: one(users, {
@@ -378,6 +389,7 @@ export type TaskActivity = typeof taskActivities.$inferSelect;
 export type NewTaskActivity = typeof taskActivities.$inferInsert;
 export type Notification = typeof notifications.$inferSelect;
 export type NewNotification = typeof notifications.$inferInsert;
+export type TeamPerformance = typeof teamPerformance.$inferSelect;
 
 export const insertUserSchema = createInsertSchema(users);
 export const selectUserSchema = createSelectSchema(users);

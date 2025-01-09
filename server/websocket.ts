@@ -152,20 +152,6 @@ export function setupWebSocket(server: Server) {
     });
   };
 
-  const broadcastToClients = (message: any, excludeClientId?: string) => {
-    clients.forEach((client, clientId) => {
-      if (excludeClientId && clientId === excludeClientId) return;
-
-      if (client.ws.readyState === WebSocket.OPEN) {
-        try {
-          client.ws.send(JSON.stringify(message));
-        } catch (err) {
-          console.error('Failed to broadcast to client:', err);
-        }
-      }
-    });
-  };
-
   wss.on('connection', (ws) => {
     const clientId = randomUUID();
 
@@ -334,8 +320,8 @@ function validateTaskUpdate(currentStatus: string, newStatus: string): { isValid
   }
 
   if (!validTransitions[currentStatus].includes(newStatus)) {
-    return { 
-      isValid: false, 
+    return {
+      isValid: false,
       message: `Cannot change task status from '${currentStatus}' to '${newStatus}'. Valid transitions are: ${validTransitions[currentStatus].join(', ')}`
     };
   }

@@ -38,6 +38,12 @@ export function registerRoutes(app: Express): Server {
   // Add error logging middleware
   app.use(apiErrorLogger);
 
+  // Create HTTP server
+  const httpServer = createServer(app);
+
+  // Setup WebSocket server
+  setupWebSocket(httpServer);
+
   // Company Profile Routes
   app.get("/api/company-profile", async (req, res) => {
     if (!req.isAuthenticated()) {
@@ -1160,12 +1166,6 @@ export function registerRoutes(app: Express): Server {
       res.status(500).json({ error: "Failed to initialize achievements" });
     }
   });
-
-  // Create HTTP server first
-  const httpServer = createServer(app);
-
-  // Set up WebSocket server
-  setupWebSocket(httpServer);
 
   // Add error handler middleware last
   app.use(errorHandler);
