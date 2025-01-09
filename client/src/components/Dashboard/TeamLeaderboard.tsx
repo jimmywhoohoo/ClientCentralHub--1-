@@ -34,36 +34,58 @@ export function TeamLeaderboard() {
   useEffect(() => {
     if (!user) return;
 
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}/ws`;
+    // Get the current host (without any path)
+    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${wsProtocol}//${window.location.host}/ws`;
+    console.log('Connecting to WebSocket:', wsUrl);
+
     const websocket = new WebSocket(wsUrl);
 
     websocket.onopen = () => {
+      console.log('WebSocket connected');
       websocket.send(JSON.stringify({
-        type: 'subscribe_team_performance',
         userId: user.id,
         username: user.username
       }));
+
+      // Subscribe to team performance updates after authentication
+      setTimeout(() => {
+        websocket.send(JSON.stringify({
+          type: 'subscribe_team_performance'
+        }));
+      }, 100);
+
       setIsConnected(true);
     };
 
     websocket.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      if (data.type === 'team_performance') {
-        setTeamMembers(data.members.sort((a: TeamMember, b: TeamMember) => 
-          b.metrics.totalScore - a.metrics.totalScore
-        ));
+      try {
+        const data = JSON.parse(event.data);
+        if (data.type === 'team_performance') {
+          setTeamMembers(data.members.sort((a: TeamMember, b: TeamMember) => 
+            b.metrics.totalScore - a.metrics.totalScore
+          ));
+        }
+      } catch (error) {
+        console.error('Error processing WebSocket message:', error);
       }
     };
 
+    websocket.onerror = (error) => {
+      console.error('WebSocket error:', error);
+      setIsConnected(false);
+    };
+
     websocket.onclose = () => {
+      console.log('WebSocket disconnected');
       setIsConnected(false);
     };
 
     setWs(websocket);
 
+    // Cleanup function
     return () => {
-      if (websocket.readyState === WebSocket.OPEN) {
+      if (websocket.readyState === WebSocket.OPEN || websocket.readyState === WebSocket.CONNECTING) {
         websocket.close();
       }
     };

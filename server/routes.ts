@@ -770,7 +770,7 @@ export function registerRoutes(app: Express): Server {
       // Check for achievements if task is completed
       if (result.data.status === 'completed' && currentTask.status !== 'completed') {
         // Get all task-related achievements
-        const allAchievements = await db.query.achievements.findMany({
+        const taskAchievements = await db.query.achievements.findMany({
           where: eq(achievements.category, 'tasks'),
         });
 
@@ -780,8 +780,8 @@ export function registerRoutes(app: Express): Server {
         });
 
         // Get completed tasks count
-        const [completedTasksResult] = await db
-          .select({ count: sql<number>`count(*)::integer` })
+        const [completedTasks] = await db
+          .select({ count: sql<number>`count(*)` })
           .from(tasks)
           .where(
             and(
@@ -790,24 +790,24 @@ export function registerRoutes(app: Express): Server {
             )
           );
 
-        const completedTasksCount = completedTasksResult?.count || 0;
-
         // Check each achievement
-        for (const achievement of allAchievements) {
+        for (const achievement of taskAchievements) {
           // Skip if already unlocked
           if (unlockedAchievements.some(ua => ua.achievementId === achievement.id)) {
             continue;
           }
 
           const criteria = achievement.criteria as Record<string, any>;
-          if (criteria?.tasksCompleted && completedTasksCount >= criteria.tasksCompleted) {
+          if (criteria?.tasksCompleted && completedTasks[0]?.count && completedTasks[0].count >= criteria.tasksCompleted) {
             // Unlock the achievement
             await db.insert(userAchievements)
               .values({
                 userId: req.user.id,
                 achievementId: achievement.id,
                 unlockedAt: new Date(),
-                progress: completedTasksCount,
+                progress: {
+                  completedTasks: completedTasks[0].count,
+                },
               });
 
             // Create notification for achievement unlock
@@ -1161,7 +1161,10 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Create HTTP server first
   const httpServer = createServer(app);
+
+  // Set up WebSocket server
   setupWebSocket(httpServer);
 
   // Add error handler middleware last
