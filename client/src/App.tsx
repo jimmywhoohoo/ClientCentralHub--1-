@@ -5,7 +5,7 @@ import DashboardPage from "./pages/DashboardPage";
 import AuthPage from "./pages/AuthPage";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { Toaster } from "@/components/ui/toaster";
-import { useUser } from "@/hooks/use-user";
+import { useUser } from "./hooks/use-user";
 
 // Loading spinner component
 function LoadingSpinner() {
@@ -42,13 +42,16 @@ function App() {
     return <LoadingSpinner />;
   }
 
+  // If user is not logged in, show auth page
   if (!user) {
     return <AuthPage />;
   }
 
+  // If user is logged in, show dashboard or 404
   return (
     <Switch>
       <Route path="/" component={DashboardPage} />
+      <Route path="/dashboard" component={DashboardPage} />
       <Route component={NotFound} />
     </Switch>
   );
