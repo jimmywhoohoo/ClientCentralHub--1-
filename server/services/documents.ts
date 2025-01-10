@@ -8,12 +8,37 @@ export class DocumentService {
   private static versionRepository = AppDataSource.getRepository(DocumentVersion);
   private static userRepository = AppDataSource.getRepository(User);
 
-  static async createDocument(data: Partial<Document>): Promise<Document> {
-    const document = this.documentRepository.create(data);
+  static async createDocument(data: {
+    name: string;
+    description?: string;
+    ownerId: number;
+    metadata?: Record<string, any>;
+    permissions?: { public: boolean; collaborators: number[] };
+  }): Promise<Document> {
+    const document = this.documentRepository.create({
+      name: data.name,
+      description: data.description,
+      ownerId: data.ownerId,
+    });
+
+    if (data.metadata) {
+      document.setMetadata(data.metadata);
+    }
+
+    if (data.permissions) {
+      document.setPermissions(data.permissions);
+    }
+
     return this.documentRepository.save(document);
   }
 
-  static async createVersion(data: Partial<DocumentVersion>): Promise<DocumentVersion> {
+  static async createVersion(data: {
+    documentId: number;
+    version: number;
+    content: string;
+    createdById: number;
+    comment?: string;
+  }): Promise<DocumentVersion> {
     const version = this.versionRepository.create(data);
     return this.versionRepository.save(version);
   }
@@ -52,11 +77,21 @@ export class DocumentService {
   }
 
   static async updateDocument(id: number, userId: number, data: Partial<Document>): Promise<Document | null> {
-    await this.documentRepository.update(
-      { id, ownerId: userId },
-      { ...data, updatedAt: new Date() }
-    );
-    return this.getDocument(id, userId);
+    const document = await this.getDocument(id, userId);
+    if (!document) return null;
+
+    if (data.metadata) {
+      document.setMetadata(data.metadata as Record<string, any>);
+      delete data.metadata;
+    }
+
+    if (data.permissions) {
+      document.setPermissions(data.permissions as { public: boolean; collaborators: number[] });
+      delete data.permissions;
+    }
+
+    Object.assign(document, { ...data, updatedAt: new Date() });
+    return this.documentRepository.save(document);
   }
 
   static async getVersionHistory(documentId: number): Promise<DocumentVersion[]> {

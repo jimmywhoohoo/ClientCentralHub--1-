@@ -38,18 +38,33 @@ export class Document {
   @Column({ name: "is_archived", type: "boolean", default: false })
   isArchived!: boolean;
 
-  @Column({ type: "simple-json", nullable: true })
-  metadata?: Record<string, any>;
+  @Column({ type: "text", nullable: true })
+  metadata?: string;
 
   @Column({ 
-    type: "simple-json", 
-    default: '{"public": false, "collaborators": []}'
+    type: "text",
+    default: JSON.stringify({ public: false, collaborators: [] })
   })
-  permissions!: {
-    public: boolean;
-    collaborators: number[];
-  };
+  permissions!: string;
 
   @OneToMany(() => DocumentVersion, (version) => version.document)
   versions?: DocumentVersion[];
+
+  // Getters for JSON fields
+  getMetadata(): Record<string, any> | null {
+    return this.metadata ? JSON.parse(this.metadata) : null;
+  }
+
+  getPermissions(): { public: boolean; collaborators: number[] } {
+    return this.permissions ? JSON.parse(this.permissions) : { public: false, collaborators: [] };
+  }
+
+  // Setters for JSON fields
+  setMetadata(value: Record<string, any> | null) {
+    this.metadata = value ? JSON.stringify(value) : null;
+  }
+
+  setPermissions(value: { public: boolean; collaborators: number[] }) {
+    this.permissions = JSON.stringify(value);
+  }
 }
