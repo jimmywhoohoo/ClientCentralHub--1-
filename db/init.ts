@@ -1,9 +1,8 @@
-import { db, testConnection } from "@db";
+import { db, getSqliteDb } from "@db";
 import { users, UserRole } from "@db/schema";
 import { eq } from "drizzle-orm";
 import { scrypt, randomBytes } from "crypto";
 import { promisify } from "util";
-import { sql } from "drizzle-orm";
 
 const scryptAsync = promisify(scrypt);
 
@@ -15,56 +14,49 @@ async function hashPassword(password: string) {
 
 export async function initializeDatabase() {
   try {
-    // Test connection first
-    const isConnected = await testConnection();
-    if (!isConnected) {
-      throw new Error("Failed to establish database connection");
-    }
+    // Get raw SQLite connection
+    const sqlite = getSqliteDb();
 
-    console.log("Database connection successful");
-
-    // Create tables if they don't exist
-    await db.execute(sql`
+    // Create tables using better-sqlite3
+    sqlite.exec(`
       CREATE TABLE IF NOT EXISTS users (
-        id SERIAL PRIMARY KEY,
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
         username TEXT NOT NULL UNIQUE,
         password TEXT NOT NULL,
         email TEXT NOT NULL,
         full_name TEXT NOT NULL,
         company_name TEXT NOT NULL,
         role TEXT NOT NULL DEFAULT 'client',
-        active BOOLEAN NOT NULL DEFAULT true,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        active INTEGER NOT NULL DEFAULT 1,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       );
     `);
 
     console.log("Database tables initialized");
 
     // Check if admin exists
-    const adminExists = await db.select()
+    const [existingAdmin] = await db
+      .select()
       .from(users)
       .where(eq(users.username, "admin"))
-      .execute();
+      .limit(1);
 
-    if (adminExists.length === 0) {
+    if (!existingAdmin) {
       // Create admin user
       const hashedPassword = await hashPassword("admin123");
-      await db.insert(users)
-        .values({
-          username: "admin",
-          password: hashedPassword,
-          email: "admin@example.com",
-          fullName: "System Administrator",
-          companyName: "System",
-          role: UserRole.ADMIN,
-          active: true,
-        })
-        .execute();
+
+      await db.insert(users).values({
+        username: "admin",
+        password: hashedPassword,
+        email: "admin@example.com",
+        fullName: "Administrator",
+        companyName: "Admin",
+        role: UserRole.ADMIN,
+        active: true,
+      });
 
       console.log("Admin user created successfully");
     }
-
-    console.log("Database initialized successfully");
   } catch (error) {
     console.error("Error initializing database:", error);
     throw error;
