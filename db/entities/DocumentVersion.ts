@@ -1,3 +1,4 @@
+import "reflect-metadata";
 import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn } from "typeorm";
 import { Document } from "./Document";
 import { User } from "./User";
@@ -7,20 +8,20 @@ export class DocumentVersion {
   @PrimaryGeneratedColumn()
   id!: number;
 
-  @Column({ name: "document_id" })
+  @Column({ name: "document_id", type: "integer" })
   documentId!: number;
 
-  @ManyToOne(() => Document, document => document.versions)
+  @ManyToOne(() => Document, (document) => document.versions)
   @JoinColumn({ name: "document_id" })
   document!: Document;
 
-  @Column()
+  @Column({ type: "integer" })
   version!: number;
 
-  @Column("text")
+  @Column({ type: "text" })
   content!: string;
 
-  @Column({ name: "created_by_id" })
+  @Column({ name: "created_by_id", type: "integer" })
   createdById!: number;
 
   @ManyToOne(() => User)
@@ -30,6 +31,6 @@ export class DocumentVersion {
   @Column({ name: "created_at", type: "datetime", default: () => "CURRENT_TIMESTAMP" })
   createdAt!: Date;
 
-  @Column({ nullable: true })
+  @Column({ nullable: true, type: "text" })
   comment?: string;
 }

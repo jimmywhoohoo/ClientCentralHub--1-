@@ -1,12 +1,13 @@
 import { Router } from "express";
 import { DocumentService } from "../services/documents";
-import { insertDocumentSchema, insertDocumentVersionSchema } from "@db/schema";
-import type { User } from "@db/schema";
+import { Document } from "@db/entities/Document";
+import { DocumentVersion } from "@db/entities/DocumentVersion";
+import { User } from "@db/entities/User";
 
 const router = Router();
 
 // Middleware to ensure user is authenticated
-const requireAuth = (req, res, next) => {
+const requireAuth = (req: any, res: any, next: any) => {
   if (!req.isAuthenticated()) {
     return res.status(401).json({ message: "Unauthorized" });
   }
@@ -32,20 +33,13 @@ router.get("/", requireAuth, async (req, res) => {
 router.post("/", requireAuth, async (req, res) => {
   try {
     const user = req.user as User;
-    const result = insertDocumentSchema.safeParse({
+    const documentData: Partial<Document> = {
       ...req.body,
       ownerId: user.id
-    });
+    };
 
-    if (!result.success) {
-      return res.status(400).json({ 
-        message: "Invalid input", 
-        errors: result.error.issues 
-      });
-    }
+    const document = await DocumentService.createDocument(documentData);
 
-    const document = await DocumentService.createDocument(result.data);
-    
     // Create initial version
     const version = await DocumentService.createVersion({
       documentId: document.id,
@@ -95,23 +89,16 @@ router.post("/:id/versions", requireAuth, async (req, res) => {
     const latestVersion = await DocumentService.getLatestVersion(documentId);
     const newVersion = latestVersion ? latestVersion.version + 1 : 1;
 
-    const result = insertDocumentVersionSchema.safeParse({
+    const versionData: Partial<DocumentVersion> = {
       documentId,
       version: newVersion,
       content: req.body.content,
       createdById: user.id,
       comment: req.body.comment
-    });
+    };
 
-    if (!result.success) {
-      return res.status(400).json({ 
-        message: "Invalid input", 
-        errors: result.error.issues 
-      });
-    }
+    const version = await DocumentService.createVersion(versionData);
 
-    const version = await DocumentService.createVersion(result.data);
-    
     // Update document's updatedAt
     await DocumentService.updateDocument(documentId, user.id, {
       updatedAt: new Date()

@@ -6,12 +6,10 @@ import { User } from "@db/entities/User";
 export class DocumentService {
   private static documentRepository = AppDataSource.getRepository(Document);
   private static versionRepository = AppDataSource.getRepository(DocumentVersion);
+  private static userRepository = AppDataSource.getRepository(User);
 
-  static async createDocument(data: Partial<Document>, userId: number): Promise<Document> {
-    const document = this.documentRepository.create({
-      ...data,
-      ownerId: userId,
-    });
+  static async createDocument(data: Partial<Document>): Promise<Document> {
+    const document = this.documentRepository.create(data);
     return this.documentRepository.save(document);
   }
 

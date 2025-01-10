@@ -1,3 +1,4 @@
+import "reflect-metadata";
 import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToMany, JoinColumn } from "typeorm";
 import { User } from "./User";
 import { DocumentVersion } from "./DocumentVersion";
@@ -7,16 +8,16 @@ export class Document {
   @PrimaryGeneratedColumn()
   id!: number;
 
-  @Column()
+  @Column({ type: "text" })
   name!: string;
 
-  @Column({ nullable: true })
+  @Column({ nullable: true, type: "text" })
   description?: string;
 
-  @Column({ name: "owner_id" })
+  @Column({ name: "owner_id", type: "integer" })
   ownerId!: number;
 
-  @ManyToOne(() => User, user => user.documents)
+  @ManyToOne(() => User, (user) => user.documents)
   @JoinColumn({ name: "owner_id" })
   owner!: User;
 
@@ -26,18 +27,18 @@ export class Document {
   @Column({ name: "updated_at", type: "datetime", default: () => "CURRENT_TIMESTAMP" })
   updatedAt!: Date;
 
-  @Column({ name: "is_archived", default: false })
+  @Column({ name: "is_archived", type: "boolean", default: false })
   isArchived!: boolean;
 
-  @Column("simple-json", { nullable: true })
+  @Column({ type: "simple-json", nullable: true })
   metadata?: Record<string, any>;
 
-  @Column("simple-json", { default: '{"public": false, "collaborators": []}' })
+  @Column({ type: "simple-json", default: '{"public": false, "collaborators": []}' })
   permissions!: {
     public: boolean;
     collaborators: number[];
   };
 
-  @OneToMany(() => DocumentVersion, version => version.document)
+  @OneToMany(() => DocumentVersion, (version) => version.document)
   versions?: DocumentVersion[];
 }

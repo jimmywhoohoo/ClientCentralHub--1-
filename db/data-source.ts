@@ -8,10 +8,12 @@ import path from "path";
 // Create TypeORM data source
 export const AppDataSource = new DataSource({
   type: "sqlite",
-  database: path.resolve(process.cwd(), "sqlite.db"),
-  entities: [User, Document, DocumentVersion],
+  database: "database.sqlite",
   synchronize: true, // Only for development
-  logging: true,
+  logging: ["error", "warn"],
+  entities: [User, Document, DocumentVersion],
+  subscribers: [],
+  migrations: [],
 });
 
 // Initialize the data source

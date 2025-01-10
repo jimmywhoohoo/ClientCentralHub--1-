@@ -1,3 +1,4 @@
+import "reflect-metadata";
 import { Entity, PrimaryGeneratedColumn, Column, OneToMany } from "typeorm";
 import { Document } from "./Document";
 
@@ -6,30 +7,30 @@ export class User {
   @PrimaryGeneratedColumn()
   id!: number;
 
-  @Column({ unique: true })
+  @Column({ unique: true, type: "text" })
   username!: string;
 
-  @Column()
+  @Column({ type: "text" })
   password!: string;
 
-  @Column()
+  @Column({ type: "text" })
   email!: string;
 
-  @Column({ name: "full_name" })
+  @Column({ name: "full_name", type: "text" })
   fullName!: string;
 
-  @Column({ name: "company_name" })
+  @Column({ name: "company_name", type: "text" })
   companyName!: string;
 
-  @Column({ default: "user" })
+  @Column({ type: "text", default: "user" })
   role!: "admin" | "user";
 
-  @Column({ default: true })
+  @Column({ type: "boolean", default: true })
   active!: boolean;
 
   @Column({ name: "created_at", type: "datetime", default: () => "CURRENT_TIMESTAMP" })
   createdAt!: Date;
 
-  @OneToMany(() => Document, document => document.owner)
+  @OneToMany(() => Document, (document) => document.owner)
   documents?: Document[];
 }

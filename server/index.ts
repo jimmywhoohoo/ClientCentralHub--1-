@@ -2,7 +2,7 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { setupAuth } from "./auth";
-import { initializeDatabase } from "@db/data-source";
+import { AppDataSource } from "@db/data-source";
 import "reflect-metadata";
 
 const app = express();
@@ -43,7 +43,7 @@ app.use((req, res, next) => {
 (async () => {
   try {
     // Initialize TypeORM database connection
-    await initializeDatabase();
+    await AppDataSource.initialize();
     console.log("Database initialized successfully");
 
     // Set up authentication before registering routes
