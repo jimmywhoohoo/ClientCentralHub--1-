@@ -1,5 +1,5 @@
-import { drizzle } from 'drizzle-orm/postgres-js';
-import postgres from 'postgres';
+import { drizzle } from 'drizzle-orm/node-postgres';
+import { Pool } from 'pg';
 import * as schema from "@db/schema";
 
 if (!process.env.DATABASE_URL) {
@@ -8,22 +8,31 @@ if (!process.env.DATABASE_URL) {
   );
 }
 
-// Create a PostgreSQL client with explicit configuration
-const queryClient = postgres(process.env.DATABASE_URL, {
-  max: 1,
-  ssl: true,
-  idle_timeout: 20,
-  max_lifetime: 60 * 30
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  max: 1, // Adjust pool size as needed
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 2000,
 });
 
-// Create and export the database instance with schema
-export const db = drizzle(queryClient, { schema });
+// Add error handler for unexpected errors
+pool.on('error', (err) => {
+  console.error('Unexpected error on idle client', err);
+  process.exit(-1);
+});
+
+export const db = drizzle(pool, { schema });
 
 // Test database connection
 async function testConnection() {
   try {
-    await queryClient`SELECT NOW()`;
-    console.log('Database connection successful');
+    const client = await pool.connect();
+    try {
+      await client.query('SELECT NOW()');
+      console.log('Database connection successful');
+    } finally {
+      client.release();
+    }
   } catch (err) {
     console.error('Database connection error:', err);
     throw err;
