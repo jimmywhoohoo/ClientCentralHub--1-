@@ -8,7 +8,15 @@ if (!process.env.DATABASE_URL) {
   );
 }
 
-const client = postgres(process.env.DATABASE_URL);
+// Configure connection with SSL and proper timeout
+const client = postgres(process.env.DATABASE_URL, {
+  ssl: 'require',
+  connect_timeout: 10,
+  idle_timeout: 20,
+  max_lifetime: 60 * 30 // 30 minutes
+});
+
+// Create Drizzle ORM instance
 export const db = drizzle(client, { schema });
 
 // Export schema for use in other files
