@@ -5,9 +5,8 @@ import session from "express-session";
 import createMemoryStore from "memorystore";
 import { scrypt, randomBytes, timingSafeEqual } from "crypto";
 import { promisify } from "util";
-import { users } from "@db/schema";
-import { db } from "@db";
-import { eq } from "drizzle-orm";
+import { AppDataSource } from "@db/data-source";
+import { User } from "@db/entities/User";
 
 const scryptAsync = promisify(scrypt);
 const crypto = {
@@ -40,13 +39,11 @@ export function setupAuth(app: Express) {
   app.use(passport.initialize());
   app.use(passport.session());
 
+  const userRepository = AppDataSource.getRepository(User);
+
   passport.use(new LocalStrategy(async (username, password, done) => {
     try {
-      const [user] = await db
-        .select()
-        .from(users)
-        .where(eq(users.username, username))
-        .limit(1);
+      const user = await userRepository.findOne({ where: { username } });
 
       if (!user) {
         return done(null, false, { message: "Invalid credentials" });
@@ -70,11 +67,7 @@ export function setupAuth(app: Express) {
 
   passport.deserializeUser(async (id: number, done) => {
     try {
-      const [user] = await db
-        .select()
-        .from(users)
-        .where(eq(users.id, id))
-        .limit(1);
+      const user = await userRepository.findOne({ where: { id } });
       done(null, user);
     } catch (err) {
       done(err);

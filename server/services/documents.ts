@@ -1,88 +1,71 @@
-import { db } from "@db";
-import { documents, documentVersions, type NewDocument, type NewDocumentVersion } from "@db/schema";
-import { eq, and, desc } from "drizzle-orm";
+import { AppDataSource } from "@db/data-source";
+import { Document } from "@db/entities/Document";
+import { DocumentVersion } from "@db/entities/DocumentVersion";
+import { User } from "@db/entities/User";
 
 export class DocumentService {
-  static async createDocument(data: NewDocument): Promise<typeof documents.$inferSelect> {
-    const [document] = await db.insert(documents).values(data).returning();
-    return document;
+  private static documentRepository = AppDataSource.getRepository(Document);
+  private static versionRepository = AppDataSource.getRepository(DocumentVersion);
+
+  static async createDocument(data: Partial<Document>, userId: number): Promise<Document> {
+    const document = this.documentRepository.create({
+      ...data,
+      ownerId: userId,
+    });
+    return this.documentRepository.save(document);
   }
 
-  static async createVersion(data: NewDocumentVersion): Promise<typeof documentVersions.$inferSelect> {
-    const [version] = await db.insert(documentVersions).values(data).returning();
-    return version;
+  static async createVersion(data: Partial<DocumentVersion>): Promise<DocumentVersion> {
+    const version = this.versionRepository.create(data);
+    return this.versionRepository.save(version);
   }
 
-  static async getDocument(id: number, userId: number) {
-    const [document] = await db
-      .select()
-      .from(documents)
-      .where(
-        and(
-          eq(documents.id, id),
-          eq(documents.ownerId, userId)
-        )
-      );
-    return document;
+  static async getDocument(id: number, userId: number): Promise<Document | null> {
+    return this.documentRepository.findOne({
+      where: { id, ownerId: userId },
+      relations: ["versions"],
+    });
   }
 
-  static async getLatestVersion(documentId: number) {
-    const [version] = await db
-      .select()
-      .from(documentVersions)
-      .where(eq(documentVersions.documentId, documentId))
-      .orderBy(desc(documentVersions.version))
-      .limit(1);
-    return version;
+  static async getLatestVersion(documentId: number): Promise<DocumentVersion | null> {
+    return this.versionRepository.findOne({
+      where: { documentId },
+      order: { version: "DESC" },
+    });
   }
 
   static async listDocuments(userId: number, page = 1, limit = 10) {
-    const offset = (page - 1) * limit;
-    
-    const [docs, [{ count }]] = await Promise.all([
-      db
-        .select()
-        .from(documents)
-        .where(eq(documents.ownerId, userId))
-        .limit(limit)
-        .offset(offset)
-        .orderBy(desc(documents.updatedAt)),
-      db
-        .select({ count: sql<number>`count(*)` })
-        .from(documents)
-        .where(eq(documents.ownerId, userId))
-    ]);
+    const [documents, total] = await this.documentRepository.findAndCount({
+      where: { ownerId: userId },
+      order: { updatedAt: "DESC" },
+      skip: (page - 1) * limit,
+      take: limit,
+    });
 
     return {
-      documents: docs,
+      documents,
       pagination: {
-        total: Number(count),
+        total,
         page,
         limit,
-        pages: Math.ceil(Number(count) / limit)
-      }
+        pages: Math.ceil(total / limit),
+      },
     };
   }
 
-  static async updateDocument(id: number, userId: number, data: Partial<NewDocument>) {
-    const [document] = await db
-      .update(documents)
-      .set(data)
-      .where(
-        and(
-          eq(documents.id, id),
-          eq(documents.ownerId, userId)
-        )
-      )
-      .returning();
-    return document;
+  static async updateDocument(id: number, userId: number, data: Partial<Document>): Promise<Document | null> {
+    await this.documentRepository.update(
+      { id, ownerId: userId },
+      { ...data, updatedAt: new Date() }
+    );
+    return this.getDocument(id, userId);
   }
 
-  static async getVersionHistory(documentId: number) {
-    return db
-      .select()
-      .from(documentVersions)
-      .where(eq(documentVersions.documentId, documentId))
-      .orderBy(desc(documentVersions.version));
+  static async getVersionHistory(documentId: number): Promise<DocumentVersion[]> {
+    return this.versionRepository.find({
+      where: { documentId },
+      order: { version: "DESC" },
+      relations: ["createdBy"],
+    });
   }
 }

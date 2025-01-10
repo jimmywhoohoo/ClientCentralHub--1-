@@ -10,10 +10,8 @@ if (!process.env.DATABASE_URL) {
 
 // Configure connection with SSL and proper timeout
 const client = postgres(process.env.DATABASE_URL, {
-  ssl: 'require',
-  connect_timeout: 10,
-  idle_timeout: 20,
-  max_lifetime: 60 * 30 // 30 minutes
+  ssl: true,
+  max: 1
 });
 
 // Create Drizzle ORM instance

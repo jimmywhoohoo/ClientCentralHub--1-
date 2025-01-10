@@ -2,8 +2,8 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { setupAuth } from "./auth";
-import { initializeDatabase } from "@db/init";
-import { db } from "@db";
+import { initializeDatabase } from "@db/data-source";
+import "reflect-metadata";
 
 const app = express();
 app.use(express.json());
@@ -42,7 +42,7 @@ app.use((req, res, next) => {
 
 (async () => {
   try {
-    // Initialize database and create admin user
+    // Initialize TypeORM database connection
     await initializeDatabase();
     console.log("Database initialized successfully");
 
@@ -66,7 +66,6 @@ app.use((req, res, next) => {
       serveStatic(app);
     }
 
-    // Parse PORT as number to fix type error
     const PORT = parseInt(process.env.PORT || "5000", 10);
     server.listen(PORT, "0.0.0.0", () => {
       log(`Server running on port ${PORT}`);
