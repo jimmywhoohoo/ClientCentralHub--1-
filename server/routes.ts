@@ -933,7 +933,7 @@ export function registerRoutes(app: Express): Server {
 
       // Gettotal comments for progress calculation
       const [totalCommentsResult] = await db
-        .select({ count: sql<number>`count(*)::integer` })
+        .select({ count:number>`count(*)::integer` })
         .from(documentComments)
                 .where(eq(documentComments.userId, req.user.id));
 
@@ -1165,22 +1165,20 @@ export function registerRoutes(app: Express): Server {
   app.use(errorHandler);
 
   // Storage Settings Routes
-  app.get("/api/admin/settings/storage", async (req, res) => {
+  app.get("/api/storage/settings", async (req, res) => {
     if (!req.isAuthenticated()) {
       return res.status(401).json({ error: "Not authenticated" });
     }
 
     try {
-      const [settings] = await db
-        .select()
-        .from(storageSettings)
-        .where(eq(storageSettings.userId, req.user.id))
-        .limit(1);
+      const [settings] = await db.query.storageSettings.findMany({
+        where: eq(storageSettings.userId, req.user.id),
+        limit: 1,
+      });
 
       if (!settings) {
         // Create default settings if they don't exist
-        const [newSettings] = await db
-          .insert(storageSettings)
+        const [newSettings] = await db.insert(storageSettings)
           .values({
             userId: req.user.id,
             localEnabled: true,
@@ -1201,101 +1199,106 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  app.put("/api/admin/settings/storage", async (req, res) => {
+  app.put("/api/storage/settings", async (req, res) => {
     if (!req.isAuthenticated()) {
       return res.status(401).json({ error: "Not authenticated" });
     }
 
     try {
       const { serviceId, enabled } = req.body;
-
-      const [settings] = await db
-        .select()
-        .from(storageSettings)
-        .where(eq(storageSettings.userId, req.user.id))
-        .limit(1);
+      const [settings] = await db.query.storageSettings.findMany({
+        where: eq(storageSettings.userId, req.user.id),
+        limit: 1,
+      });
 
       if (!settings) {
         return res.status(404).json({ error: "Settings not found" });
       }
 
-      // Update the specific service setting
-      const updates: Partial<typeof storageSettings.$inferSelect> = {};
+      const updateData: Partial<typeof storageSettings.$inferSelect> = {};
       switch (serviceId) {
-        case "local":
-          updates.localEnabled = enabled;
+        case 'local':
+          updateData.localEnabled = enabled;
           break;
-        case "googleDrive":
-          updates.googleDrive = enabled;
+        case 'googleDrive':
+          updateData.googleDrive = enabled;
           break;
-        case "dropbox":
-          updates.dropbox = enabled;
+        case 'dropbox':
+          updateData.dropbox = enabled;
           break;
-        case "oneDrive":
-          updates.oneDrive = enabled;
+        case 'oneDrive':
+          updateData.oneDrive = enabled;
           break;
-        case "mega":
-          updates.mega = enabled;
+        case 'mega':
+          updateData.mega = enabled;
           break;
         default:
           return res.status(400).json({ error: "Invalid service ID" });
       }
 
-      const [updatedSettings] = await db
-        .update(storageSettings)
-        .set({
-          ...updates,
-          updatedAt: new Date(),
-        })
+      const [updated] = await db.update(storageSettings)
+        .set(updateData)
         .where(eq(storageSettings.id, settings.id))
         .returning();
 
-      res.json(updatedSettings);
+      res.json(updated);
     } catch (error) {
       console.error("Error updating storage settings:", error);
       res.status(500).json({ error: "Failed to update storage settings" });
     }
   });
 
-  app.post("/api/admin/settings/storage/:service/connect", async (req, res) => {
+  // Cloud Storage Connection Routes
+  app.post("/api/storage/:service/connect", async (req, res) => {
     if (!req.isAuthenticated()) {
       return res.status(401).json({ error: "Not authenticated" });
     }
 
+    const service = req.params.service;
     try {
-      const { service } = req.params;
-      const tokenField = `${service}Token` as keyof typeof storageSettings.$inferSelect;
-
-      // Here you would implement the actual OAuth flow for each service
-      // For now, we'll simulate a successful connection
-      const token = `mock_token_${Date.now()}`;
-
-      const [settings] = await db
-        .select()
-        .from(storageSettings)
-        .where(eq(storageSettings.userId, req.user.id))
-        .limit(1);
+      const [settings] = await db.query.storageSettings.findMany({
+        where: eq(storageSettings.userId, req.user.id),
+        limit: 1,
+      });
 
       if (!settings) {
         return res.status(404).json({ error: "Settings not found" });
       }
 
-      const updates: Partial<typeof storageSettings.$inferSelect> = {
-        [service]: true,
-        [tokenField]: token,
-        updatedAt: new Date(),
-      };
+      // Simulate connection process (in real app, this would redirect to OAuth)
+      const updateData: Partial<typeof storageSettings.$inferSelect> = {};
+      const tokenValue = `mock_token_${Date.now()}`;
 
-      const [updatedSettings] = await db
-        .update(storageSettings)
-        .set(updates)
+      switch (service) {
+        case 'googleDrive':
+          updateData.googleDrive = true;
+          updateData.googleDriveToken = tokenValue;
+          break;
+        case 'dropbox':
+          updateData.dropbox = true;
+          updateData.dropboxToken = tokenValue;
+          break;
+        case 'oneDrive':
+          updateData.oneDrive = true;
+          updateData.oneDriveToken = tokenValue;
+          break;
+        case 'mega':
+          updateData.mega = true;
+          updateData.megaToken = tokenValue;
+          break;
+        default:
+          return res.status(400).json({ error: "Invalid service" });
+      }
+
+      const [updated] = await db.update(storageSettings)
+        .set(updateData)
         .where(eq(storageSettings.id, settings.id))
         .returning();
 
-      res.json(updatedSettings);
+      res.json(updated);
     } catch (error) {
-      console.error("Error connecting storage service:", error);
-      res.status(500).json({ error: "Failed to connect storage service" });
+      console.error(`Error connecting to ${service}:`, error);
+      res.status(500).json({ error: `Failed to connect to ${service}` });
     }
   });
 

@@ -3,11 +3,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { SiGoogledrive, SiDropbox, SiMicrosoftOnedrive, SiMega } from "react-icons/si";
-import { HardDrive } from "lucide-react";
+import { SiGoogledrive, SiDropbox, SiMicrosoft, SiMega } from "react-icons/si";
+import { HardDrive, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2 } from "lucide-react";
 
 type StorageService = {
   id: string;
@@ -25,18 +24,10 @@ export function CloudStorageSettings() {
   const [isConnecting, setIsConnecting] = useState<string | null>(null);
 
   const { data: settings, isLoading } = useQuery({
-    queryKey: ['/api/admin/settings/storage'],
-    retry: false,
-    onError: () => {
-      toast({
-        title: "Error",
-        description: "Failed to load storage settings",
-        variant: "destructive",
-      });
-    }
+    queryKey: ['/api/storage/settings'],
   });
 
-  const [services] = useState<StorageService[]>([
+  const services: StorageService[] = [
     {
       id: "local",
       name: "Local Storage",
@@ -67,7 +58,7 @@ export function CloudStorageSettings() {
     {
       id: "oneDrive",
       name: "OneDrive",
-      icon: <SiMicrosoftOnedrive className="w-6 h-6" />,
+      icon: <SiMicrosoft className="w-6 h-6" />,
       isConnected: settings?.oneDrive ?? false,
       isEnabled: settings?.oneDrive ?? false,
       type: 'cloud',
@@ -82,12 +73,12 @@ export function CloudStorageSettings() {
       type: 'cloud',
       description: "Connect to MEGA for cloud storage",
     },
-  ]);
+  ];
 
   // Update storage settings mutation
   const updateSettingsMutation = useMutation({
     mutationFn: async ({ serviceId, enabled }: { serviceId: string; enabled: boolean }) => {
-      const response = await fetch('/api/admin/settings/storage', {
+      const response = await fetch('/api/storage/settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ serviceId, enabled }),
@@ -100,15 +91,8 @@ export function CloudStorageSettings() {
 
       return response.json();
     },
-    onSuccess: (_, variables) => {
-      setServices(prev =>
-        prev.map(service =>
-          service.id === variables.serviceId
-            ? { ...service, isEnabled: variables.enabled }
-            : service
-        )
-      );
-      queryClient.invalidateQueries({ queryKey: ['/api/admin/settings/storage'] });
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/storage/settings'] });
       toast({
         title: "Settings Updated",
         description: "Storage settings have been saved successfully.",
@@ -128,7 +112,7 @@ export function CloudStorageSettings() {
     mutationFn: async (serviceId: string) => {
       setIsConnecting(serviceId);
       try {
-        const response = await fetch(`/api/admin/settings/storage/${serviceId}/connect`, {
+        const response = await fetch(`/api/storage/${serviceId}/connect`, {
           method: 'POST',
           credentials: 'include',
         });
@@ -143,14 +127,7 @@ export function CloudStorageSettings() {
       }
     },
     onSuccess: (_, serviceId) => {
-      setServices(prev =>
-        prev.map(service =>
-          service.id === serviceId
-            ? { ...service, isConnected: true, isEnabled: true }
-            : service
-        )
-      );
-      queryClient.invalidateQueries({ queryKey: ['/api/admin/settings/storage'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/storage/settings'] });
       toast({
         title: "Connected Successfully",
         description: `${services.find(s => s.id === serviceId)?.name} has been connected.`,

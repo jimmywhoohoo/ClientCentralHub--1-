@@ -15,7 +15,35 @@ export const users = pgTable("users", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
-// Schema validation
+export const storageSettings = pgTable("storage_settings", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  localEnabled: boolean("local_enabled").default(true).notNull(),
+  googleDrive: boolean("google_drive").default(false).notNull(),
+  dropbox: boolean("dropbox").default(false).notNull(),
+  oneDrive: boolean("one_drive").default(false).notNull(),
+  mega: boolean("mega").default(false).notNull(),
+  googleDriveToken: text("google_drive_token"),
+  dropboxToken: text("dropbox_token"),
+  oneDriveToken: text("one_drive_token"),
+  megaToken: text("mega_token"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const storageSettingsRelations = relations(storageSettings, ({ one }) => ({
+  user: one(users, {
+    fields: [storageSettings.userId],
+    references: [users.id],
+  }),
+}));
+
+export const insertStorageSettingsSchema = createInsertSchema(storageSettings);
+export const selectStorageSettingsSchema = createSelectSchema(storageSettings);
+
+export type StorageSettings = typeof storageSettings.$inferSelect;
+export type NewStorageSettings = typeof storageSettings.$inferInsert;
+
 export const loginSchema = z.object({
   username: z.string().min(1, "Username is required"),
   password: z.string().min(1, "Password is required"),
@@ -182,35 +210,6 @@ export const teamPerformance = pgTable("team_performance", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
-
-export const storageSettings = pgTable("storage_settings", {
-  id: serial("id").primaryKey(),
-  userId: integer("user_id").references(() => users.id).notNull(),
-  localEnabled: boolean("local_enabled").default(true).notNull(),
-  googleDrive: boolean("google_drive").default(false).notNull(),
-  dropbox: boolean("dropbox").default(false).notNull(),
-  oneDrive: boolean("one_drive").default(false).notNull(),
-  mega: boolean("mega").default(false).notNull(),
-  googleDriveToken: text("google_drive_token"),
-  dropboxToken: text("dropbox_token"),
-  oneDriveToken: text("one_drive_token"),
-  megaToken: text("mega_token"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
-
-export const storageSettingsRelations = relations(storageSettings, ({ one }) => ({
-  user: one(users, {
-    fields: [storageSettings.userId],
-    references: [users.id],
-  }),
-}));
-
-export const insertStorageSettingsSchema = createInsertSchema(storageSettings);
-export const selectStorageSettingsSchema = createSelectSchema(storageSettings);
-
-export type StorageSettings = typeof storageSettings.$inferSelect;
-export type NewStorageSettings = typeof storageSettings.$inferInsert;
 
 export const createDocumentSchema = z.object({
   name: z.string().min(1, "Name is required"),
