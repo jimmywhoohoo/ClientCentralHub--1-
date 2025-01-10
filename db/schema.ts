@@ -1,17 +1,18 @@
-import { sqliteTable, text, integer } from "drizzle-orm/sqlite-core";
+import { pgTable, text, serial, integer, boolean, timestamp } from "drizzle-orm/pg-core";
 import { createInsertSchema, createSelectSchema } from "drizzle-zod";
 import { z } from "zod";
+import { relations } from "drizzle-orm";
 
-export const users = sqliteTable("users", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const users = pgTable("users", {
+  id: serial("id").primaryKey(),
   username: text("username").notNull().unique(),
   password: text("password").notNull(),
   email: text("email").notNull(),
   fullName: text("full_name").notNull(),
   companyName: text("company_name").notNull(),
   role: text("role").notNull().default("user"),
-  active: integer("active", { mode: "boolean" }).notNull().default(true),
-  createdAt: text("created_at").notNull().default('CURRENT_TIMESTAMP'),
+  active: boolean("active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
 // Schema validation
@@ -27,8 +28,8 @@ export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
 export type LoginInput = z.infer<typeof loginSchema>;
 
-export const companyProfiles = sqliteTable("company_profiles", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const companyProfiles = pgTable("company_profiles", {
+  id: serial("id").primaryKey(),
   userId: integer("user_id").references(() => users.id).notNull().unique(),
   companyName: text("company_name").notNull(),
   logo: text("logo_path"),
@@ -38,149 +39,177 @@ export const companyProfiles = sqliteTable("company_profiles", {
   employeeCount: text("employee_count"),
   foundedYear: integer("founded_year"),
   headquarters: text("headquarters"),
-  updatedAt: text("updated_at").notNull().default('CURRENT_TIMESTAMP'),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
-export const documents = sqliteTable("documents", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const documents = pgTable("documents", {
+  id: serial("id").primaryKey(),
   name: text("name").notNull(),
   content: text("content").notNull(),
   createdBy: integer("created_by").references(() => users.id),
-  createdAt: text("created_at").notNull().default('CURRENT_TIMESTAMP'),
-  updatedAt: text("updated_at").notNull().default('CURRENT_TIMESTAMP'),
-  isArchived: integer("is_archived", { mode: "boolean" }).default(0),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  isArchived: boolean("is_archived").default(false),
 });
 
-export const documentMessages = sqliteTable("document_messages", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const documentMessages = pgTable("document_messages", {
+  id: serial("id").primaryKey(),
   documentId: integer("document_id").references(() => documents.id).notNull(),
   userId: integer("user_id").references(() => users.id).notNull(),
   content: text("content").notNull(),
-  createdAt: text("created_at").notNull().default('CURRENT_TIMESTAMP'),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
-export const documentVersions = sqliteTable("document_versions", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const documentVersions = pgTable("document_versions", {
+  id: serial("id").primaryKey(),
   documentId: integer("document_id").references(() => documents.id).notNull(),
   versionNumber: integer("version_number").notNull(),
   content: text("content").notNull(),
   commitMessage: text("commit_message"),
   createdBy: integer("created_by").references(() => users.id).notNull(),
-  createdAt: text("created_at").notNull().default('CURRENT_TIMESTAMP'),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
-export const files = sqliteTable("files", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const files = pgTable("files", {
+  id: serial("id").primaryKey(),
   fileName: text("file_name").notNull(),
   fileType: text("file_type").notNull(),
   fileSize: integer("file_size").notNull(),
   path: text("path").notNull(),
   thumbnailPath: text("thumbnail_path"),
   uploadedBy: integer("uploaded_by").references(() => users.id),
-  uploadedAt: text("uploaded_at").notNull().default('CURRENT_TIMESTAMP'),
+  uploadedAt: timestamp("uploaded_at").defaultNow().notNull(),
   description: text("description"),
-  isArchived: integer("is_archived", { mode: "boolean" }).default(0),
+  isArchived: boolean("is_archived").default(false),
 });
 
-export const tasks = sqliteTable("tasks", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const tasks = pgTable("tasks", {
+  id: serial("id").primaryKey(),
   title: text("title").notNull(),
   description: text("description"),
   status: text("status").notNull().default("pending"),
   priority: text("priority").notNull().default("medium"),
   assignedTo: integer("assigned_to").references(() => users.id),
   assignedBy: integer("assigned_by").references(() => users.id),
-  deadline: text("deadline"),
-  createdAt: text("created_at").notNull().default('CURRENT_TIMESTAMP'),
-  updatedAt: text("updated_at").notNull().default('CURRENT_TIMESTAMP'),
-  completedAt: text("completed_at"),
+  deadline: timestamp("deadline"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  completedAt: timestamp("completed_at"),
 });
 
-export const documentComments = sqliteTable("document_comments", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const documentComments = pgTable("document_comments", {
+  id: serial("id").primaryKey(),
   documentId: integer("document_id").references(() => documents.id).notNull(),
   userId: integer("user_id").references(() => users.id).notNull(),
   content: text("content").notNull(),
-  createdAt: text("created_at").notNull().default('CURRENT_TIMESTAMP'),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
   selectionRange: text("selection_range").notNull(),
   mentions: text("mentions"),
   parentId: integer("parent_id").references(() => documentComments.id),
-  resolved: integer("resolved", { mode: "boolean" }).default(0),
+  resolved: boolean("resolved").default(false),
 });
 
-export const fileShares = sqliteTable("file_shares", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const fileShares = pgTable("file_shares", {
+  id: serial("id").primaryKey(),
   fileId: integer("file_id").references(() => files.id).notNull(),
   sharedWithUserId: integer("shared_with_user_id").references(() => users.id).notNull(),
   sharedByUserId: integer("shared_by_user_id").references(() => users.id).notNull(),
-  sharedAt: text("shared_at").notNull().default('CURRENT_TIMESTAMP'),
-  expiresAt: text("expires_at"),
-  revoked: integer("revoked", { mode: "boolean" }).default(0),
+  sharedAt: timestamp("shared_at").defaultNow().notNull(),
+  expiresAt: timestamp("expires_at"),
+  revoked: boolean("revoked").default(false),
 });
 
-export const achievements = sqliteTable("achievements", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const achievements = pgTable("achievements", {
+  id: serial("id").primaryKey(),
   name: text("name").notNull(),
   description: text("description").notNull(),
   icon: text("icon").notNull(),
   category: text("category").notNull(),
   criteria: text("criteria").notNull(),
-  createdAt: text("created_at").notNull().default('CURRENT_TIMESTAMP'),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
-export const userAchievements = sqliteTable("user_achievements", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const userAchievements = pgTable("user_achievements", {
+  id: serial("id").primaryKey(),
   userId: integer("user_id").references(() => users.id).notNull(),
   achievementId: integer("achievement_id").references(() => achievements.id).notNull(),
-  unlockedAt: text("unlocked_at").notNull().default('CURRENT_TIMESTAMP'),
+  unlockedAt: timestamp("unlocked_at").defaultNow().notNull(),
   progress: text("progress"),
 });
 
-export const notificationPreferences = sqliteTable("notification_preferences", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const notificationPreferences = pgTable("notification_preferences", {
+  id: serial("id").primaryKey(),
   userId: integer("user_id").references(() => users.id).notNull(),
-  emailNotifications: integer("email_notifications", { mode: "boolean" }).default(1),
-  taskAssignments: integer("task_assignments", { mode: "boolean" }).default(1),
-  taskUpdates: integer("task_updates", { mode: "boolean" }).default(1),
-  documentSharing: integer("document_sharing", { mode: "boolean" }).default(1),
-  documentComments: integer("document_comments", { mode: "boolean" }).default(1),
-  achievementUnlocks: integer("achievement_unlocks", { mode: "boolean" }).default(1),
-  dailyDigest: integer("daily_digest", { mode: "boolean" }).default(0),
-  weeklyDigest: integer("weekly_digest", { mode: "boolean" }).default(1),
-  createdAt: text("created_at").notNull().default('CURRENT_TIMESTAMP'),
-  updatedAt: text("updated_at").notNull().default('CURRENT_TIMESTAMP'),
+  emailNotifications: boolean("email_notifications").default(true),
+  taskAssignments: boolean("task_assignments").default(true),
+  taskUpdates: boolean("task_updates").default(true),
+  documentSharing: boolean("document_sharing").default(true),
+  documentComments: boolean("document_comments").default(true),
+  achievementUnlocks: boolean("achievement_unlocks").default(true),
+  dailyDigest: boolean("daily_digest").default(false),
+  weeklyDigest: boolean("weekly_digest").default(true),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
-export const taskActivities = sqliteTable("task_activities", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const taskActivities = pgTable("task_activities", {
+  id: serial("id").primaryKey(),
   taskId: integer("task_id").notNull().references(() => tasks.id),
   userId: integer("user_id").notNull().references(() => users.id),
   action: text("action").notNull(),
-  createdAt: text("created_at").notNull().default('CURRENT_TIMESTAMP'),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
-export const notifications = sqliteTable("notifications", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const notifications = pgTable("notifications", {
+  id: serial("id").primaryKey(),
   userId: integer("user_id").references(() => users.id).notNull(),
   type: text("type").notNull(),
   title: text("title").notNull(),
   message: text("message").notNull(),
   link: text("link"),
-  read: integer("read", { mode: "boolean" }).default(0).notNull(),
-  createdAt: text("created_at").notNull().default('CURRENT_TIMESTAMP'),
+  read: boolean("read").default(false).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
-export const teamPerformance = sqliteTable("team_performance", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const teamPerformance = pgTable("team_performance", {
+  id: serial("id").primaryKey(),
   userId: integer("user_id").references(() => users.id).notNull(),
   tasksCompleted: integer("tasks_completed").notNull().default(0),
   onTimeCompletion: integer("on_time_completion").notNull().default(0),
   documentComments: integer("document_comments").notNull().default(0),
   collaborationScore: integer("collaboration_score").notNull().default(0),
   totalScore: integer("total_score").notNull().default(0),
-  updatedAt: text("updated_at").notNull().default('CURRENT_TIMESTAMP'),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+
+export const cloudStorageSettings = pgTable("cloud_storage_settings", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  googleDrive: boolean("google_drive").default(false).notNull(),
+  dropbox: boolean("dropbox").default(false).notNull(),
+  oneDrive: boolean("one_drive").default(false).notNull(),
+  mega: boolean("mega").default(false).notNull(),
+  googleDriveToken: text("google_drive_token"),
+  dropboxToken: text("dropbox_token"),
+  oneDriveToken: text("one_drive_token"),
+  megaToken: text("mega_token"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const cloudStorageSettingsRelations = relations(cloudStorageSettings, ({ one }) => ({
+  user: one(users, {
+    fields: [cloudStorageSettings.userId],
+    references: [users.id],
+  }),
+}));
+
+export const insertCloudStorageSettingsSchema = createInsertSchema(cloudStorageSettings);
+export const selectCloudStorageSettingsSchema = createSelectSchema(cloudStorageSettings);
+
+export type CloudStorageSettings = typeof cloudStorageSettings.$inferSelect;
+export type NewCloudStorageSettings = typeof cloudStorageSettings.$inferInsert;
 
 export const createDocumentSchema = z.object({
   name: z.string().min(1, "Name is required"),

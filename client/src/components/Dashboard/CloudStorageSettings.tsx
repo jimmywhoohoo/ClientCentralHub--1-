@@ -3,9 +3,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { SiGoogledrive, SiDropbox, SiOnedrive, SiMega } from "react-icons/si";
+import { SiGoogledrive, SiDropbox, SiMicrosoftOnedrive, SiMega } from "react-icons/si";
 import { useToast } from "@/hooks/use-toast";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Loader2 } from "lucide-react";
 
 type CloudService = {
   id: string;
@@ -17,41 +18,52 @@ type CloudService = {
 
 export function CloudStorageSettings() {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [isConnecting, setIsConnecting] = useState<string | null>(null);
+
+  // Fetch current cloud storage settings
+  const { data: settings, isLoading } = useQuery({
+    queryKey: ['/api/admin/settings/cloud-storage'],
+    retry: false,
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: "Failed to load cloud storage settings",
+        variant: "destructive",
+      });
+    }
+  });
+
   const [services, setServices] = useState<CloudService[]>([
     {
-      id: "google-drive",
+      id: "googleDrive",
       name: "Google Drive",
       icon: <SiGoogledrive className="w-6 h-6" />,
-      isConnected: false,
-      isEnabled: false,
+      isConnected: settings?.googleDrive || false,
+      isEnabled: settings?.googleDrive || false,
     },
     {
       id: "dropbox",
       name: "Dropbox",
       icon: <SiDropbox className="w-6 h-6" />,
-      isConnected: false,
-      isEnabled: false,
+      isConnected: settings?.dropbox || false,
+      isEnabled: settings?.dropbox || false,
     },
     {
-      id: "onedrive",
+      id: "oneDrive",
       name: "OneDrive",
-      icon: <SiOnedrive className="w-6 h-6" />,
-      isConnected: false,
-      isEnabled: false,
+      icon: <SiMicrosoftOnedrive className="w-6 h-6" />,
+      isConnected: settings?.oneDrive || false,
+      isEnabled: settings?.oneDrive || false,
     },
     {
       id: "mega",
       name: "MEGA",
       icon: <SiMega className="w-6 h-6" />,
-      isConnected: false,
-      isEnabled: false,
+      isConnected: settings?.mega || false,
+      isEnabled: settings?.mega || false,
     },
   ]);
-
-  // Fetch current cloud storage settings
-  const { data: cloudSettings } = useQuery({
-    queryKey: ['/api/admin/settings/cloud-storage'],
-  });
 
   // Update cloud storage settings mutation
   const updateSettingsMutation = useMutation({
@@ -77,6 +89,7 @@ export function CloudStorageSettings() {
             : service
         )
       );
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/settings/cloud-storage'] });
       toast({
         title: "Settings Updated",
         description: "Cloud storage settings have been saved successfully.",
@@ -85,7 +98,7 @@ export function CloudStorageSettings() {
     onError: (error: Error) => {
       toast({
         title: "Error",
-        description: error.message,
+        description: error.message || "Failed to update settings",
         variant: "destructive",
       });
     },
@@ -94,34 +107,40 @@ export function CloudStorageSettings() {
   // Connect cloud service mutation
   const connectServiceMutation = useMutation({
     mutationFn: async (serviceId: string) => {
-      const response = await fetch(`/api/admin/settings/cloud-storage/${serviceId}/connect`, {
-        method: 'POST',
-        credentials: 'include',
-      });
+      setIsConnecting(serviceId);
+      try {
+        const response = await fetch(`/api/admin/settings/cloud-storage/${serviceId}/connect`, {
+          method: 'POST',
+          credentials: 'include',
+        });
 
-      if (!response.ok) {
-        throw new Error(await response.text());
+        if (!response.ok) {
+          throw new Error(await response.text());
+        }
+
+        return response.json();
+      } finally {
+        setIsConnecting(null);
       }
-
-      return response.json();
     },
     onSuccess: (_, serviceId) => {
       setServices(prev =>
         prev.map(service =>
           service.id === serviceId
-            ? { ...service, isConnected: true }
+            ? { ...service, isConnected: true, isEnabled: true }
             : service
         )
       );
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/settings/cloud-storage'] });
       toast({
         title: "Connected Successfully",
-        description: "Cloud storage service has been connected.",
+        description: `${services.find(s => s.id === serviceId)?.name} has been connected.`,
       });
     },
     onError: (error: Error) => {
       toast({
         title: "Connection Failed",
-        description: error.message,
+        description: error.message || "Failed to connect to service",
         variant: "destructive",
       });
     },
@@ -134,6 +153,20 @@ export function CloudStorageSettings() {
   const handleConnectService = (serviceId: string) => {
     connectServiceMutation.mutate(serviceId);
   };
+
+  if (isLoading) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Cloud Storage Integration</CardTitle>
+          <CardDescription>Loading storage settings...</CardDescription>
+        </CardHeader>
+        <CardContent className="flex items-center justify-center py-8">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card>
@@ -170,6 +203,7 @@ export function CloudStorageSettings() {
                       onCheckedChange={(checked) =>
                         handleToggleService(service.id, checked)
                       }
+                      disabled={updateSettingsMutation.isPending}
                     />
                     <Label htmlFor={`${service.id}-toggle`}>
                       {service.isEnabled ? "Enabled" : "Disabled"}
@@ -179,8 +213,16 @@ export function CloudStorageSettings() {
                   <Button
                     variant="outline"
                     onClick={() => handleConnectService(service.id)}
+                    disabled={!!isConnecting}
                   >
-                    Connect
+                    {isConnecting === service.id ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Connecting...
+                      </>
+                    ) : (
+                      "Connect"
+                    )}
                   </Button>
                 )}
               </div>
