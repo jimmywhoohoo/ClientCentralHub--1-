@@ -5,9 +5,9 @@ import session from "express-session";
 import createMemoryStore from "memorystore";
 import { scrypt, randomBytes, timingSafeEqual } from "crypto";
 import { promisify } from "util";
-import { users, UserRole } from "@db/schema";
+import { users } from "@db/schema";
 import { db } from "@db";
-import { eq, and } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 
 const scryptAsync = promisify(scrypt);
 const crypto = {
@@ -40,37 +40,26 @@ export function setupAuth(app: Express) {
   app.use(passport.initialize());
   app.use(passport.session());
 
-  passport.use('admin-local', new LocalStrategy(async (username, password, done) => {
+  passport.use(new LocalStrategy(async (username, password, done) => {
     try {
-      // Log the authentication attempt
-      console.log('Admin login attempt:', username);
-
       const [user] = await db
         .select()
         .from(users)
-        .where(
-          and(
-            eq(users.username, username),
-            eq(users.role, UserRole.ADMIN)
-          )
-        )
+        .where(eq(users.username, username))
         .limit(1);
 
       if (!user) {
-        console.log('Admin user not found');
-        return done(null, false, { message: "Invalid admin credentials" });
+        return done(null, false, { message: "Invalid credentials" });
       }
 
       const isMatch = await crypto.compare(password, user.password);
-      console.log('Password match:', isMatch);
-
       if (!isMatch) {
-        return done(null, false, { message: "Invalid admin credentials" });
+        return done(null, false, { message: "Invalid credentials" });
       }
 
       return done(null, user);
     } catch (err) {
-      console.error('Admin auth error:', err);
+      console.error('Auth error:', err);
       return done(err);
     }
   }));
@@ -92,10 +81,10 @@ export function setupAuth(app: Express) {
     }
   });
 
-  app.post("/api/admin/login", (req, res, next) => {
-    passport.authenticate("admin-local", (err: any, user: any, info: any) => {
+  app.post("/api/login", (req, res, next) => {
+    passport.authenticate("local", (err: any, user: any, info: any) => {
       if (err) {
-        console.error('Admin login error:', err);
+        console.error('Login error:', err);
         return res.status(500).json({
           ok: false,
           message: "An error occurred during login"
@@ -105,7 +94,7 @@ export function setupAuth(app: Express) {
       if (!user) {
         return res.status(401).json({
           ok: false,
-          message: info?.message || "Invalid admin credentials"
+          message: info?.message || "Invalid credentials"
         });
       }
 
@@ -120,7 +109,7 @@ export function setupAuth(app: Express) {
 
         return res.json({
           ok: true,
-          message: "Admin login successful",
+          message: "Login successful",
           user: {
             id: user.id,
             username: user.username,
