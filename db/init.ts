@@ -14,26 +14,7 @@ async function hashPassword(password: string) {
 
 export async function initializeDatabase() {
   try {
-    // Create tables using raw SQL since we're not using migrations
-    // Use the underlying SQLite connection to create tables
-    const createTableSQL = `
-      CREATE TABLE IF NOT EXISTS users (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        username TEXT NOT NULL UNIQUE,
-        password TEXT NOT NULL,
-        email TEXT NOT NULL,
-        full_name TEXT NOT NULL,
-        company_name TEXT NOT NULL,
-        role TEXT NOT NULL DEFAULT 'user',
-        active INTEGER NOT NULL DEFAULT 1,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-      )
-    `;
-
-    // Access the underlying better-sqlite3 connection
-    db.$client.exec(createTableSQL);
-
-    console.log("Database tables created successfully");
+    console.log("Starting database initialization...");
 
     // Check if admin already exists
     const [existingAdmin] = await db
@@ -45,22 +26,23 @@ export async function initializeDatabase() {
     if (!existingAdmin) {
       console.log("Creating admin user...");
       const hashedPassword = await hashPassword("admin123");
-      
+
       await db.insert(users).values({
         username: "admin",
         password: hashedPassword,
         email: "admin@example.com",
         fullName: "Administrator",
-        companyName: "Admin",
+        companyName: "Admin Company",
         role: "admin",
         active: true,
       });
-      
+
       console.log("Admin user created successfully");
     } else {
       console.log("Admin user already exists");
     }
 
+    console.log("Database initialization completed successfully");
     return true;
   } catch (error) {
     console.error("Database initialization failed:", error);
