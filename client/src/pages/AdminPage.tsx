@@ -53,7 +53,7 @@ import { TaskDashboard } from "../components/Dashboard/TaskDashboard";
 import { FileShareDialog } from "../components/Dashboard/FileShareDialog";
 import { UserTaskDetails } from "../components/Dashboard/UserTaskDetails";
 import {Label} from "@/components/ui/label" // Added import for Label
-
+import { TeamAnalytics } from "../components/Dashboard/TeamAnalytics";
 
 type FileWithUploader = File & {
   uploader: User;
@@ -397,7 +397,9 @@ export default function AdminPage() {
           </div>
 
           <TaskDashboard />
-
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <TeamAnalytics />
+          </div>
           <Card>
             <CardHeader>
               <CardTitle>User Management</CardTitle>
@@ -960,11 +962,8 @@ export default function AdminPage() {
                     <dd>{selectedFile?.uploader.companyName}</dd>
                   </div>
                   <div>
-                    <dt className="textsm text-muted-foreground">Status</dt>
-                    <dd>                    <Badge variant={selectedFile?.isArchived ? "secondary" : "default"}>
-                      {selectedFile?.isArchived ? "Archived" : "Active"}
-                    </Badge>
-                    </dd>
+                    <dt className="text-sm text-muted-foreground">Upload Date</dt>
+                    <dd>{selectedFile && new Date(selectedFile.uploadedAt).toLocaleDateString()}</dd>
                   </div>
                 </dl>
               </div>
