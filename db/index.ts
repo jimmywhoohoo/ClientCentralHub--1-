@@ -1,24 +1,14 @@
-import { drizzle } from 'drizzle-orm/postgres-js';
-import postgres from 'postgres';
+import { drizzle } from 'drizzle-orm/better-sqlite3';
+import Database from 'better-sqlite3';
 import * as schema from "@db/schema";
 
-if (!process.env.DATABASE_URL) {
-  throw new Error(
-    "DATABASE_URL must be set. Did you forget to provision a database?",
-  );
-}
-
-const queryClient = postgres(process.env.DATABASE_URL, {
-  max: 1,
-  connect_timeout: 10,
-});
-
-export const db = drizzle(queryClient);
+const sqlite = new Database('sqlite.db');
+export const db = drizzle(sqlite);
 
 // Test database connection
 async function testConnection() {
   try {
-    const result = await queryClient`SELECT NOW()`;
+    const result = sqlite.prepare('SELECT 1').get();
     console.log('Database connection successful');
     return result;
   } catch (err) {
