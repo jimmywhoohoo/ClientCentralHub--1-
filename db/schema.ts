@@ -1,43 +1,43 @@
-import { pgTable, text, serial, integer, boolean, timestamp, jsonb } from "drizzle-orm/pg-core";
-import { createInsertSchema, createSelectSchema } from "drizzle-zod";
-import { relations } from "drizzle-orm";
-import type { z } from "zod";
+import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core';
+import { createInsertSchema, createSelectSchema } from 'drizzle-zod';
+import { relations } from 'drizzle-orm';
+import type { z } from 'zod';
+import { sql } from 'drizzle-orm';
 
 // Users table
-export const users = pgTable("users", {
-  id: serial("id").primaryKey(),
+export const users = sqliteTable("users", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
   username: text("username").unique().notNull(),
   password: text("password").notNull(),
   email: text("email").notNull(),
   fullName: text("full_name").notNull(),
   companyName: text("company_name").notNull(),
-  role: text("role", { enum: ["admin", "user"] }).default("user").notNull(),
-  active: boolean("active").default(true).notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
+  role: text("role").notNull().default("user"),
+  active: integer("active", { mode: "boolean" }).notNull().default(true),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`CURRENT_TIMESTAMP`),
 });
 
 // Documents table
-export const documents = pgTable("documents", {
-  id: serial("id").primaryKey(),
+export const documents = sqliteTable("documents", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
   name: text("name").notNull(),
   description: text("description"),
   ownerId: integer("owner_id").notNull().references(() => users.id),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
-  isArchived: boolean("is_archived").default(false).notNull(),
-  metadata: jsonb("metadata"),
-  permissions: jsonb("permissions").$type<{ public: boolean; collaborators: number[] }>()
-    .default({ public: false, collaborators: [] }).notNull(),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().default(sql`CURRENT_TIMESTAMP`),
+  isArchived: integer("is_archived", { mode: "boolean" }).notNull().default(false),
+  metadata: text("metadata", { mode: "json" }),
+  permissions: text("permissions", { mode: "json" }).notNull().default('{"public":false,"collaborators":[]}'),
 });
 
 // Document versions table
-export const documentVersions = pgTable("document_versions", {
-  id: serial("id").primaryKey(),
+export const documentVersions = sqliteTable("document_versions", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
   documentId: integer("document_id").notNull().references(() => documents.id),
   version: integer("version").notNull(),
   content: text("content").notNull(),
   createdById: integer("created_by_id").notNull().references(() => users.id),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`CURRENT_TIMESTAMP`),
   comment: text("comment"),
 });
 

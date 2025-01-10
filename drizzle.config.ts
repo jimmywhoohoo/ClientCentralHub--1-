@@ -3,17 +3,12 @@ import { config } from "dotenv";
 
 config();
 
-if (!process.env.DATABASE_URL) {
-  throw new Error("DATABASE_URL must be set. Did you forget to provision a database?");
-}
-
 export default defineConfig({
   schema: "./db/schema.ts",
-  out: "./drizzle",
-  driver: 'pg',
+  out: "./migrations",
+  driver: "better-sqlite",
   dbCredentials: {
-    connectionString: process.env.DATABASE_URL,
-    ssl: { rejectUnauthorized: false } 
+    url: "./sqlite.db"
   },
   verbose: true,
   strict: true,
