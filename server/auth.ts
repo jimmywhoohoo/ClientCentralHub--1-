@@ -78,7 +78,7 @@ export function setupAuth(app: Express) {
     }
   }));
 
-  passport.serializeUser((user, done) => {
+  passport.serializeUser((user: any, done) => {
     done(null, user.id);
   });
 
@@ -99,7 +99,7 @@ export function setupAuth(app: Express) {
   app.post("/api/admin/login", (req, res, next) => {
     console.log('Admin login attempt:', req.body);
 
-    passport.authenticate("admin-local", (err: any, user: Express.User | false, info: any) => {
+    passport.authenticate("admin-local", (err: any, user: any, info: any) => {
       if (err) {
         console.error('Admin login error:', err);
         return res.status(500).json({
@@ -109,9 +109,9 @@ export function setupAuth(app: Express) {
       }
 
       if (!user) {
-        return res.status(400).json({
+        return res.status(401).json({
           ok: false,
-          message: info.message || "Invalid admin credentials"
+          message: info?.message || "Invalid admin credentials"
         });
       }
 
@@ -156,7 +156,7 @@ export function setupAuth(app: Express) {
 
   app.get("/api/user", (req, res) => {
     if (req.isAuthenticated()) {
-      const user = req.user;
+      const user = req.user as any;
       return res.json({
         id: user.id,
         username: user.username,
