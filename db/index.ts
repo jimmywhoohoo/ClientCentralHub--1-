@@ -1,37 +1,29 @@
-import { drizzle } from 'drizzle-orm/node-postgres';
-import { Pool } from 'pg';
+import { drizzle } from 'drizzle-orm/postgres-js';
+import postgres from 'postgres';
 import * as schema from "@db/schema";
 
 if (!process.env.DATABASE_URL) {
-  throw new Error("DATABASE_URL must be set");
+  throw new Error(
+    "DATABASE_URL must be set. Did you forget to provision a database?",
+  );
 }
 
-// Create a new pool with explicit configuration
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  max: 5, // reduce max connections
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 5000,
-  ssl: process.env.NODE_ENV === 'production' ? {
-    rejectUnauthorized: false
-  } : undefined
+// Create a PostgreSQL client with explicit configuration
+const queryClient = postgres(process.env.DATABASE_URL, {
+  max: 1,
+  ssl: true,
+  idle_timeout: 20,
+  max_lifetime: 60 * 30
 });
 
-// Add error handler for the pool
-pool.on('error', (err) => {
-  console.error('Unexpected error on idle client', err);
-});
+// Create and export the database instance with schema
+export const db = drizzle(queryClient, { schema });
 
 // Test database connection
 async function testConnection() {
   try {
-    const client = await pool.connect();
-    try {
-      await client.query('SELECT NOW()');
-      console.log('Database connection successful');
-    } finally {
-      client.release();
-    }
+    await queryClient`SELECT NOW()`;
+    console.log('Database connection successful');
   } catch (err) {
     console.error('Database connection error:', err);
     throw err;
@@ -43,5 +35,3 @@ testConnection().catch((err) => {
   console.error('Failed to initialize database:', err);
   process.exit(1);
 });
-
-export const db = drizzle(pool, { schema });
