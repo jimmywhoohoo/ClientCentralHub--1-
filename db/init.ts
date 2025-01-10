@@ -3,7 +3,6 @@ import { users } from "@db/schema";
 import { eq } from "drizzle-orm";
 import { scrypt, randomBytes } from "crypto";
 import { promisify } from "util";
-import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 
 const scryptAsync = promisify(scrypt);
 
@@ -15,10 +14,26 @@ async function hashPassword(password: string) {
 
 export async function initializeDatabase() {
   try {
-    // Run migrations
-    console.log("Running migrations...");
-    migrate(db, { migrationsFolder: "./drizzle" });
-    console.log("Migrations completed");
+    // Create tables using raw SQL since we're not using migrations
+    // Use the underlying SQLite connection to create tables
+    const createTableSQL = `
+      CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT NOT NULL UNIQUE,
+        password TEXT NOT NULL,
+        email TEXT NOT NULL,
+        full_name TEXT NOT NULL,
+        company_name TEXT NOT NULL,
+        role TEXT NOT NULL DEFAULT 'user',
+        active INTEGER NOT NULL DEFAULT 1,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `;
+
+    // Access the underlying better-sqlite3 connection
+    db.$client.exec(createTableSQL);
+
+    console.log("Database tables created successfully");
 
     // Check if admin already exists
     const [existingAdmin] = await db
@@ -30,7 +45,7 @@ export async function initializeDatabase() {
     if (!existingAdmin) {
       console.log("Creating admin user...");
       const hashedPassword = await hashPassword("admin123");
-
+      
       await db.insert(users).values({
         username: "admin",
         password: hashedPassword,
@@ -40,7 +55,7 @@ export async function initializeDatabase() {
         role: "admin",
         active: true,
       });
-
+      
       console.log("Admin user created successfully");
     } else {
       console.log("Admin user already exists");
