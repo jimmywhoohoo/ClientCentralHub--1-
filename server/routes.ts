@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { setupWebSocket } from "./websocket";
 import { db } from "@db";
-import { tasks, users, files, companyProfiles, notificationPreferences, notifications, taskActivities, achievements, userAchievements, documentComments, cloudStorageSettings, storageSettings } from "@db/schema";
+import { tasks, users, files, companyProfiles, notificationPreferences, notifications, taskActivities, achievements, userAchievements, documentComments, cloudStorageSettings, storageSettings, documents } from "@db/schema";
 import { eq, desc, or, asc, and, not, exists } from "drizzle-orm";
 import { errorHandler, apiErrorLogger } from "./error-handler";
 import { createTaskSchema, updateTaskSchema, updateCompanyProfileSchema, updateNotificationPreferencesSchema } from "@db/schema";
@@ -1309,6 +1309,59 @@ export function registerRoutes(app: Express): Server {
     } catch (error) {
       console.error(`Error connecting to ${service}:`, error);
       res.status(500).json({ error: `Failed to connect to ${service}` });
+    }
+  });
+
+  // Document Management Routes
+  app.get("/api/documents/:id", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ error: "Not authenticated" });
+    }
+
+    try {
+      const [document] = await db.query.documents.findMany({
+        where: eq(documents.id, parseInt(req.params.id)),
+        limit: 1,
+      });
+
+      if (!document) {
+        return res.status(404).json({ error: "Document not found" });
+      }
+
+      res.json(document);
+    } catch (error) {
+      console.error("Error fetching document:", error);
+      res.status(500).json({ error: "Failed to fetch document" });
+    }
+  });
+
+  app.put("/api/documents/:id", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ error: "Not authenticated" });
+    }
+
+    try {
+      const { content } = req.body;
+      if (!content) {
+        return res.status(400).json({ error: "Content is required" });
+      }
+
+      const [document] = await db.update(documents)
+        .set({
+          content,
+          updatedAt: new Date(),
+        })
+        .where(eq(documents.id, parseInt(req.params.id)))
+        .returning();
+
+      if (!document) {
+        return res.status(404).json({ error: "Document not found" });
+      }
+
+      res.json(document);
+    } catch (error) {
+      console.error("Error updating document:", error);
+      res.status(500).json({ error: "Failed to update document" });
     }
   });
 

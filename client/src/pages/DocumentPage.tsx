@@ -5,10 +5,10 @@ import { useRoute } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import type { Document } from "@db/schema";
 
-export default function DocumentPage() {
+function DocumentPage() {
   const [, params] = useRoute("/documents/:id");
   const { toast } = useToast();
-  
+
   const { data: document, isLoading, error } = useQuery<Document>({
     queryKey: ['/api/documents', params?.id],
     enabled: !!params?.id,
@@ -43,3 +43,6 @@ export default function DocumentPage() {
     </div>
   );
 }
+
+// Make sure to export the component as default
+export default DocumentPage;
