@@ -1,7 +1,7 @@
 import { pgTable, text, serial, integer, boolean, timestamp, json } from "drizzle-orm/pg-core";
 import { createInsertSchema, createSelectSchema } from "drizzle-zod";
 import { z } from "zod";
-import { relations } from "drizzle-orm";
+import { relations, type InferSelectModel, type InferInsertModel } from "drizzle-orm";
 
 // =========================================
 // Independent Table Definitions
@@ -131,6 +131,7 @@ export const documentVersions = pgTable("document_versions", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+// Add proper return type for documentComments
 export const documentComments = pgTable("document_comments", {
   id: serial("id").primaryKey(),
   documentId: integer("document_id").references(() => documents.id).notNull(),
@@ -139,9 +140,17 @@ export const documentComments = pgTable("document_comments", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
   selectionRange: text("selection_range").notNull(),
   mentions: text("mentions"),
-  parentId: integer("parent_id").references(() => documentComments.id),
+  parentId: integer("parent_id"),
   resolved: boolean("resolved").default(false),
 });
+
+// Add relation after declaration
+export const documentCommentsRelations = relations(documentComments, ({ one }) => ({
+  parent: one(documentComments, {
+    fields: [documentComments.parentId],
+    references: [documentComments.id],
+  }),
+}));
 
 export const taskActivities = pgTable("task_activities", {
   id: serial("id").primaryKey(),

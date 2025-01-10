@@ -1,3 +1,4 @@
+import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Sidebar } from "../components/Dashboard/Sidebar";
 import { DocumentList } from "../components/Dashboard/DocumentList";
 import { Questionnaire } from "../components/Dashboard/Questionnaire";
@@ -67,54 +68,86 @@ export default function DashboardPage() {
   ];
 
   return (
-    <div className="flex min-h-screen bg-background">
-      <Sidebar />
-      <main className="flex-1 p-4 md:p-8 overflow-y-auto mt-16 md:mt-0 ml-0 md:ml-64">
-        <div className="max-w-7xl mx-auto space-y-6 md:space-y-8">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {stats.map((stat) => (
-              <Card key={stat.title} className="touch-manipulation">
-                <CardContent className="p-4 md:p-6">
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-1">
-                      <p className="text-sm font-medium text-muted-foreground">
-                        {stat.title}
-                      </p>
-                      <p className="text-xl md:text-2xl font-bold">{stat.value}</p>
-                    </div>
-                    <div className="text-muted-foreground">
-                      {stat.icon}
-                    </div>
+    <DashboardLayout>
+      <div className="space-y-6">
+        {/* Stats Overview */}
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {stats.map((stat) => (
+            <Card key={stat.title}>
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium text-muted-foreground">
+                      {stat.title}
+                    </p>
+                    <p className="text-2xl font-bold">{stat.value}</p>
                   </div>
-                  <p className="text-xs text-muted-foreground mt-2">
-                    {stat.change}
-                  </p>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+                  <div className="text-muted-foreground">
+                    {stat.icon}
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground mt-2">
+                  {stat.change}
+                </p>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
 
-          {/* Team Leaderboard Section */}
-          <section className="touch-manipulation">
+        {/* Add loading states and more sections later */}
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+          {/* Documents Section - Placeholder */}
+          <Card>
+            <CardContent className="p-6">
+              <h2 className="text-lg font-semibold mb-4">Recent Documents</h2>
+              {isLoadingDocuments ? (
+                <p>Loading documents...</p>
+              ) : (
+                <div className="space-y-4">
+                  {documents?.map((doc) => (
+                    <div key={doc.id} className="flex items-center gap-4">
+                      <FileText className="h-5 w-5 text-muted-foreground" />
+                      <div>
+                        <p className="font-medium">{doc.name}</p>
+                        <p className="text-sm text-muted-foreground">
+                          Last updated: {new Date(doc.updatedAt).toLocaleDateString()}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Tasks Section - Placeholder */}
+          <Card>
+            <CardContent className="p-6">
+              <h2 className="text-lg font-semibold mb-4">Recent Tasks</h2>
+              {isLoadingTaskStats ? (
+                <p>Loading tasks...</p>
+              ) : (
+                <div className="space-y-4">
+                  <p className="text-sm text-muted-foreground">
+                    Task management section coming soon...
+                  </p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+        <section>
             <TeamLeaderboard />
           </section>
-
-          {/* Tasks Section */}
-          <section className="touch-manipulation">
+          <section>
             <TaskList />
           </section>
-
-          {/* Analytics Dashboard */}
-          <section className="touch-manipulation">
+          <section>
             <DocumentAnalytics />
           </section>
-
-          {/* Add Recommendations Section */}
-          <section className="touch-manipulation">
+          <section>
             <DocumentRecommendations />
           </section>
-
-          {/* Documents and Questionnaires */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8">
             <section>
               <h2 className="text-lg font-semibold mb-4">Documents</h2>
@@ -132,8 +165,7 @@ export default function DashboardPage() {
               />
             </section>
           </div>
-        </div>
-      </main>
-    </div>
+      </div>
+    </DashboardLayout>
   );
 }
