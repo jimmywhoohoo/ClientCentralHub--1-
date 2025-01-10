@@ -3,13 +3,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { SiGoogledrive, SiDropbox, SiMicrosoft, SiMega } from "react-icons/si";
+import { SiGoogledrive, SiDropbox, SiMicrosoftOnedrive, SiMega } from "react-icons/si";
 import { HardDrive, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { StorageSettings } from "@db/schema";
 
 type StorageService = {
-  id: string;
+  id: "local" | "googleDrive" | "dropbox" | "oneDrive" | "mega";
   name: string;
   icon: React.ReactNode;
   isConnected: boolean;
@@ -23,8 +24,16 @@ export function CloudStorageSettings() {
   const queryClient = useQueryClient();
   const [isConnecting, setIsConnecting] = useState<string | null>(null);
 
-  const { data: settings, isLoading } = useQuery({
+  const { data: settings, isLoading } = useQuery<StorageSettings>({
     queryKey: ['/api/storage/settings'],
+    retry: false,
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to load storage settings",
+        variant: "destructive",
+      });
+    }
   });
 
   const services: StorageService[] = [
@@ -32,7 +41,7 @@ export function CloudStorageSettings() {
       id: "local",
       name: "Local Storage",
       icon: <HardDrive className="w-6 h-6" />,
-      isConnected: true, // Local storage is always connected
+      isConnected: true,
       isEnabled: settings?.localEnabled ?? true,
       type: 'local',
       description: "Store files on the local filesystem",
@@ -58,7 +67,7 @@ export function CloudStorageSettings() {
     {
       id: "oneDrive",
       name: "OneDrive",
-      icon: <SiMicrosoft className="w-6 h-6" />,
+      icon: <SiMicrosoftOnedrive className="w-6 h-6" />,
       isConnected: settings?.oneDrive ?? false,
       isEnabled: settings?.oneDrive ?? false,
       type: 'cloud',
@@ -77,7 +86,7 @@ export function CloudStorageSettings() {
 
   // Update storage settings mutation
   const updateSettingsMutation = useMutation({
-    mutationFn: async ({ serviceId, enabled }: { serviceId: string; enabled: boolean }) => {
+    mutationFn: async ({ serviceId, enabled }: { serviceId: StorageService['id']; enabled: boolean }) => {
       const response = await fetch('/api/storage/settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -109,7 +118,7 @@ export function CloudStorageSettings() {
 
   // Connect cloud service mutation
   const connectServiceMutation = useMutation({
-    mutationFn: async (serviceId: string) => {
+    mutationFn: async (serviceId: StorageService['id']) => {
       setIsConnecting(serviceId);
       try {
         const response = await fetch(`/api/storage/${serviceId}/connect`, {
@@ -142,11 +151,11 @@ export function CloudStorageSettings() {
     },
   });
 
-  const handleToggleService = (serviceId: string, enabled: boolean) => {
+  const handleToggleService = (serviceId: StorageService['id'], enabled: boolean) => {
     updateSettingsMutation.mutate({ serviceId, enabled });
   };
 
-  const handleConnectService = (serviceId: string) => {
+  const handleConnectService = (serviceId: StorageService['id']) => {
     connectServiceMutation.mutate(serviceId);
   };
 

@@ -1,23 +1,12 @@
-import { pgTable, text, serial, integer, boolean, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, json } from "drizzle-orm/pg-core";
 import { createInsertSchema, createSelectSchema } from "drizzle-zod";
 import { z } from "zod";
 import { relations } from "drizzle-orm";
 
-export const users = pgTable("users", {
-  id: serial("id").primaryKey(),
-  username: text("username").notNull().unique(),
-  password: text("password").notNull(),
-  email: text("email").notNull(),
-  fullName: text("full_name").notNull(),
-  companyName: text("company_name").notNull(),
-  role: text("role").notNull().default("user"),
-  active: boolean("active").notNull().default(true),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});
-
+// Storage settings schema
 export const storageSettings = pgTable("storage_settings", {
   id: serial("id").primaryKey(),
-  userId: integer("user_id").references(() => users.id).notNull(),
+  userId: integer("user_id").notNull(),
   localEnabled: boolean("local_enabled").default(true).notNull(),
   googleDrive: boolean("google_drive").default(false).notNull(),
   dropbox: boolean("dropbox").default(false).notNull(),
@@ -31,6 +20,7 @@ export const storageSettings = pgTable("storage_settings", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+// Relations
 export const storageSettingsRelations = relations(storageSettings, ({ one }) => ({
   user: one(users, {
     fields: [storageSettings.userId],
@@ -38,23 +28,25 @@ export const storageSettingsRelations = relations(storageSettings, ({ one }) => 
   }),
 }));
 
+// Schema validation
 export const insertStorageSettingsSchema = createInsertSchema(storageSettings);
 export const selectStorageSettingsSchema = createSelectSchema(storageSettings);
 
+// Types
 export type StorageSettings = typeof storageSettings.$inferSelect;
 export type NewStorageSettings = typeof storageSettings.$inferInsert;
 
-export const loginSchema = z.object({
-  username: z.string().min(1, "Username is required"),
-  password: z.string().min(1, "Password is required"),
+export const users = pgTable("users", {
+  id: serial("id").primaryKey(),
+  username: text("username").notNull().unique(),
+  password: text("password").notNull(),
+  email: text("email").notNull(),
+  fullName: text("full_name").notNull(),
+  companyName: text("company_name").notNull(),
+  role: text("role").notNull().default("user"),
+  active: boolean("active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
 });
-
-export const insertUserSchema = createInsertSchema(users);
-export const selectUserSchema = createSelectSchema(users);
-
-export type User = typeof users.$inferSelect;
-export type NewUser = typeof users.$inferInsert;
-export type LoginInput = z.infer<typeof loginSchema>;
 
 export const companyProfiles = pgTable("company_profiles", {
   id: serial("id").primaryKey(),
@@ -162,7 +154,7 @@ export const userAchievements = pgTable("user_achievements", {
   userId: integer("user_id").references(() => users.id).notNull(),
   achievementId: integer("achievement_id").references(() => achievements.id).notNull(),
   unlockedAt: timestamp("unlocked_at").defaultNow().notNull(),
-  progress: text("progress"),
+  progress: json("progress").$type<{ completedTasks?: number; commentsPosted?: number; }>(),
 });
 
 export const notificationPreferences = pgTable("notification_preferences", {
@@ -210,6 +202,18 @@ export const teamPerformance = pgTable("team_performance", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+
+export const loginSchema = z.object({
+  username: z.string().min(1, "Username is required"),
+  password: z.string().min(1, "Password is required"),
+});
+
+export const insertUserSchema = createInsertSchema(users);
+export const selectUserSchema = createSelectSchema(users);
+
+export type User = typeof users.$inferSelect;
+export type NewUser = typeof users.$inferInsert;
+export type LoginInput = z.infer<typeof loginSchema>;
 
 export const createDocumentSchema = z.object({
   name: z.string().min(1, "Name is required"),

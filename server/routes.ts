@@ -933,9 +933,9 @@ export function registerRoutes(app: Express): Server {
 
       // Gettotal comments for progress calculation
       const [totalCommentsResult] = await db
-        .select({ count:number>`count(*)::integer` })
+        .select({ count: sql<number>`count(*)::integer` })
         .from(documentComments)
-                .where(eq(documentComments.userId, req.user.id));
+        .where(eq(documentComments.userId, req.user.id));
 
       const totalCommentsCount = totalCommentsResult?.count || 0;
 
