@@ -4,6 +4,7 @@ import { AlertCircle, Loader2 } from "lucide-react";
 import DashboardPage from "@/pages/DashboardPage";
 import AuthPage from "@/pages/AuthPage";
 import AdminLoginPage from "@/pages/AdminLoginPage";
+import AdminPage from "@/pages/AdminPage";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { Toaster } from "@/components/ui/toaster";
 import { useUser } from "@/hooks/use-user";
@@ -28,7 +29,7 @@ function NotFound() {
             <h1 className="text-2xl font-bold">404 Page Not Found</h1>
           </div>
           <p className="mt-4 text-sm text-muted-foreground">
-            The page you're looking for doesn't exist.
+            The page you're looking for doesn't exist or you don't have permission to access it.
           </p>
         </CardContent>
       </Card>
@@ -43,28 +44,27 @@ function App() {
     return <LoadingSpinner />;
   }
 
-  // Handle admin login route separately
-  if (window.location.pathname === '/admin/login') {
-    return <AdminLoginPage />;
-  }
-
-  // If user is not logged in, show auth page
+  // If user is not logged in, show auth pages
   if (!user) {
-    return <AuthPage />;
+    return (
+      <Switch>
+        <Route path="/admin/login" component={AdminLoginPage} />
+        <Route component={AuthPage} />
+      </Switch>
+    );
   }
 
-  // If user is logged in, show protected routes
+  // User is logged in - handle protected routes
   return (
     <Switch>
+      <Route path="/admin">
+        {user.role === 'admin' ? <AdminPage /> : <NotFound />}
+      </Route>
+      <Route path="/dashboard" component={DashboardPage} />
       <Route path="/">
-        <DashboardPage />
+        {user.role === 'admin' ? <AdminPage /> : <DashboardPage />}
       </Route>
-      <Route path="/dashboard">
-        <DashboardPage />
-      </Route>
-      <Route>
-        <NotFound />
-      </Route>
+      <Route component={NotFound} />
     </Switch>
   );
 }

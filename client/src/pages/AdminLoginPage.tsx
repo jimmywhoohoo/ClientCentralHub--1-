@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
-import { Shield } from "lucide-react";
+import { Shield, Loader2 } from "lucide-react";
 
 type LoginResponse = {
   ok: boolean;
@@ -55,14 +55,16 @@ export default function AdminLoginPage() {
 
       toast({
         title: "Success",
-        description: data.message,
+        description: "Login successful",
       });
 
+      // Use setLocation for client-side routing
       setLocation("/admin");
     } catch (error: any) {
+      console.error('Login error:', error);
       toast({
         title: "Error",
-        description: error.message,
+        description: error.message || 'Failed to login',
         variant: "destructive",
       });
     } finally {
@@ -107,7 +109,14 @@ export default function AdminLoginPage() {
             </div>
 
             <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? "Logging in..." : "Login as Admin"}
+              {isLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Logging in...
+                </>
+              ) : (
+                "Login as Admin"
+              )}
             </Button>
 
             <Button

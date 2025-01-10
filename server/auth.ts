@@ -42,27 +42,27 @@ export function setupAuth(app: Express) {
 
   passport.use('admin-local', new LocalStrategy(async (username, password, done) => {
     try {
-      console.log('Attempting admin login for:', username);
+      // Log the authentication attempt
+      console.log('Admin login attempt:', username);
+
       const [user] = await db
         .select()
         .from(users)
         .where(
           and(
             eq(users.username, username),
-            eq(users.role, UserRole.ADMIN),
-            eq(users.active, true)
+            eq(users.role, UserRole.ADMIN)
           )
         )
         .limit(1);
 
-      console.log('Found admin user:', user ? 'yes' : 'no');
-
       if (!user) {
+        console.log('Admin user not found');
         return done(null, false, { message: "Invalid admin credentials" });
       }
 
       const isMatch = await crypto.compare(password, user.password);
-      console.log('Password match:', isMatch ? 'yes' : 'no');
+      console.log('Password match:', isMatch);
 
       if (!isMatch) {
         return done(null, false, { message: "Invalid admin credentials" });
@@ -93,8 +93,6 @@ export function setupAuth(app: Express) {
   });
 
   app.post("/api/admin/login", (req, res, next) => {
-    console.log('Admin login attempt:', req.body);
-
     passport.authenticate("admin-local", (err: any, user: any, info: any) => {
       if (err) {
         console.error('Admin login error:', err);
@@ -113,7 +111,7 @@ export function setupAuth(app: Express) {
 
       req.login(user, (err) => {
         if (err) {
-          console.error('Admin session error:', err);
+          console.error('Session error:', err);
           return res.status(500).json({
             ok: false,
             message: "Login failed"
