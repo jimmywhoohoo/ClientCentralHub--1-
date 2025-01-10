@@ -2,6 +2,7 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { setupAuth } from "./auth";
+import { initializeAdmin } from "./init-admin";
 import { db } from "@db";
 
 const app = express();
@@ -41,6 +42,9 @@ app.use((req, res, next) => {
 
 (async () => {
   try {
+    // Initialize admin user
+    await initializeAdmin();
+
     // Set up authentication before registering routes
     setupAuth(app);
 
