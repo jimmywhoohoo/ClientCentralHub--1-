@@ -38,32 +38,12 @@ function NotFound() {
 }
 
 function App() {
-  const { user, isLoading } = useUser();
-
-  if (isLoading) {
-    return <LoadingSpinner />;
-  }
-
-  // If user is not logged in, show auth pages
-  if (!user) {
-    return (
-      <Switch>
-        <Route path="/admin/login" component={AdminLoginPage} />
-        <Route component={AuthPage} />
-      </Switch>
-    );
-  }
-
-  // User is logged in - handle protected routes
   return (
     <Switch>
-      <Route path="/admin">
-        {user.role === 'admin' ? <AdminPage /> : <NotFound />}
-      </Route>
-      <Route path="/dashboard" component={DashboardPage} />
-      <Route path="/">
-        {user.role === 'admin' ? <AdminPage /> : <DashboardPage />}
-      </Route>
+      <Route path="/" component={DashboardPage} />
+      <Route path="/auth" component={AuthPage} />
+      <Route path="/admin/login" component={AdminLoginPage} />
+      <Route path="/admin" component={AdminPage} />
       <Route component={NotFound} />
     </Switch>
   );
