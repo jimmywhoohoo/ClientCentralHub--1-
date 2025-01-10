@@ -20,17 +20,7 @@ export const users = pgTable("users", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
-// Document table definition
-export const documents = pgTable("documents", {
-  id: serial("id").primaryKey(),
-  name: text("name").notNull(),
-  content: text("content"),
-  userId: serial("user_id").references(() => users.id),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
-});
-
-// Schema validation
+// Define validation schemas
 export const loginSchema = z.object({
   username: z.string().min(1, "Username is required"),
   password: z.string().min(1, "Password is required"),
