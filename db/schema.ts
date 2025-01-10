@@ -3,6 +3,169 @@ import { createInsertSchema, createSelectSchema } from "drizzle-zod";
 import { z } from "zod";
 import { relations } from "drizzle-orm";
 
+// Users table
+export const users = pgTable("users", {
+  id: serial("id").primaryKey(),
+  username: text("username").notNull().unique(),
+  password: text("password").notNull(),
+  email: text("email").notNull(),
+  fullName: text("full_name").notNull(),
+  companyName: text("company_name").notNull(),
+  role: text("role").notNull().default("user"),
+  active: boolean("active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Client profiles
+export const clientProfiles = pgTable("client_profiles", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  companyName: text("company_name").notNull(),
+  industry: text("industry"),
+  location: text("location"),
+  contactPerson: text("contact_person"),
+  contactEmail: text("contact_email"),
+  contactPhone: text("contact_phone"),
+  status: text("status").default("active"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Tasks
+export const tasks = pgTable("tasks", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  description: text("description"),
+  clientId: integer("client_id").references(() => clientProfiles.id),
+  assignedTo: integer("assigned_to").references(() => users.id),
+  priority: text("priority").notNull().default("medium"),
+  status: text("status").notNull().default("pending"),
+  deadline: timestamp("deadline"),
+  completedAt: timestamp("completed_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Communications
+export const communications = pgTable("communications", {
+  id: serial("id").primaryKey(),
+  clientId: integer("client_id").references(() => clientProfiles.id).notNull(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  type: text("type").notNull(), // email, chat, call, meeting
+  content: text("content").notNull(),
+  metadata: json("metadata"), // For additional data like call duration, meeting location
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Files
+export const files = pgTable("files", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  path: text("path").notNull(),
+  type: text("type").notNull(),
+  size: integer("size").notNull(),
+  clientId: integer("client_id").references(() => clientProfiles.id),
+  uploadedBy: integer("uploaded_by").references(() => users.id).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Analytics Events
+export const analyticsEvents = pgTable("analytics_events", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  clientId: integer("client_id").references(() => clientProfiles.id),
+  eventType: text("event_type").notNull(),
+  metadata: json("metadata"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Achievements
+export const achievements = pgTable("achievements", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  description: text("description").notNull(),
+  criteria: json("criteria").notNull(),
+  points: integer("points").notNull(),
+  icon: text("icon"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// User Achievements
+export const userAchievements = pgTable("user_achievements", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  achievementId: integer("achievement_id").references(() => achievements.id).notNull(),
+  unlockedAt: timestamp("unlocked_at").defaultNow().notNull(),
+});
+
+// Team Performance
+export const teamPerformance = pgTable("team_performance", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  tasksCompleted: integer("tasks_completed").notNull().default(0),
+  clientSatisfaction: integer("client_satisfaction").notNull().default(0),
+  communicationScore: integer("communication_score").notNull().default(0),
+  period: text("period").notNull(), // daily, weekly, monthly
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Define relationships
+export const userRelations = relations(users, ({ many }) => ({
+  clientProfiles: many(clientProfiles),
+  tasks: many(tasks),
+  communications: many(communications),
+  files: many(files),
+  analyticsEvents: many(analyticsEvents),
+  achievements: many(userAchievements),
+  performance: many(teamPerformance),
+}));
+
+// Schema validation
+export const insertUserSchema = createInsertSchema(users);
+export const selectUserSchema = createSelectSchema(users);
+
+export const insertClientProfileSchema = createInsertSchema(clientProfiles);
+export const selectClientProfileSchema = createSelectSchema(clientProfiles);
+
+export const insertTaskSchema = createInsertSchema(tasks);
+export const selectTaskSchema = createSelectSchema(tasks);
+
+export const insertCommunicationSchema = createInsertSchema(communications);
+export const selectCommunicationSchema = createSelectSchema(communications);
+
+export const insertFileSchema = createInsertSchema(files);
+export const selectFileSchema = createSelectSchema(files);
+
+// Types
+export type User = typeof users.$inferSelect;
+export type NewUser = typeof users.$inferInsert;
+
+export type ClientProfile = typeof clientProfiles.$inferSelect;
+export type NewClientProfile = typeof clientProfiles.$inferInsert;
+
+export type Task = typeof tasks.$inferSelect;
+export type NewTask = typeof tasks.$inferInsert;
+
+export type Communication = typeof communications.$inferSelect;
+export type NewCommunication = typeof communications.$inferInsert;
+
+export type File = typeof files.$inferSelect;
+export type NewFile = typeof files.$inferInsert;
+
+export type AnalyticsEvent = typeof analyticsEvents.$inferSelect;
+export type NewAnalyticsEvent = typeof analyticsEvents.$inferInsert;
+
+export type Achievement = typeof achievements.$inferSelect;
+export type NewAchievement = typeof achievements.$inferInsert;
+
+export type UserAchievement = typeof userAchievements.$inferSelect;
+export type NewUserAchievement = typeof userAchievements.$inferInsert;
+
+export type TeamPerformance = typeof teamPerformance.$inferSelect;
+export type NewTeamPerformance = typeof teamPerformance.$inferInsert;
+
+
 // Storage settings schema
 export const storageSettings = pgTable("storage_settings", {
   id: serial("id").primaryKey(),
@@ -36,32 +199,6 @@ export const selectStorageSettingsSchema = createSelectSchema(storageSettings);
 export type StorageSettings = typeof storageSettings.$inferSelect;
 export type NewStorageSettings = typeof storageSettings.$inferInsert;
 
-export const users = pgTable("users", {
-  id: serial("id").primaryKey(),
-  username: text("username").notNull().unique(),
-  password: text("password").notNull(),
-  email: text("email").notNull(),
-  fullName: text("full_name").notNull(),
-  companyName: text("company_name").notNull(),
-  role: text("role").notNull().default("user"),
-  active: boolean("active").notNull().default(true),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});
-
-export const companyProfiles = pgTable("company_profiles", {
-  id: serial("id").primaryKey(),
-  userId: integer("user_id").references(() => users.id).notNull().unique(),
-  companyName: text("company_name").notNull(),
-  logo: text("logo_path"),
-  description: text("description"),
-  website: text("website"),
-  industry: text("industry"),
-  employeeCount: text("employee_count"),
-  foundedYear: integer("founded_year"),
-  headquarters: text("headquarters"),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
-
 export const documents = pgTable("documents", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
@@ -90,33 +227,6 @@ export const documentVersions = pgTable("document_versions", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
-export const files = pgTable("files", {
-  id: serial("id").primaryKey(),
-  fileName: text("file_name").notNull(),
-  fileType: text("file_type").notNull(),
-  fileSize: integer("file_size").notNull(),
-  path: text("path").notNull(),
-  thumbnailPath: text("thumbnail_path"),
-  uploadedBy: integer("uploaded_by").references(() => users.id),
-  uploadedAt: timestamp("uploaded_at").defaultNow().notNull(),
-  description: text("description"),
-  isArchived: boolean("is_archived").default(false),
-});
-
-export const tasks = pgTable("tasks", {
-  id: serial("id").primaryKey(),
-  title: text("title").notNull(),
-  description: text("description"),
-  status: text("status").notNull().default("pending"),
-  priority: text("priority").notNull().default("medium"),
-  assignedTo: integer("assigned_to").references(() => users.id),
-  assignedBy: integer("assigned_by").references(() => users.id),
-  deadline: timestamp("deadline"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
-  completedAt: timestamp("completed_at"),
-});
-
 export const documentComments = pgTable("document_comments", {
   id: serial("id").primaryKey(),
   documentId: integer("document_id").references(() => documents.id).notNull(),
@@ -137,24 +247,6 @@ export const fileShares = pgTable("file_shares", {
   sharedAt: timestamp("shared_at").defaultNow().notNull(),
   expiresAt: timestamp("expires_at"),
   revoked: boolean("revoked").default(false),
-});
-
-export const achievements = pgTable("achievements", {
-  id: serial("id").primaryKey(),
-  name: text("name").notNull(),
-  description: text("description").notNull(),
-  icon: text("icon").notNull(),
-  category: text("category").notNull(),
-  criteria: text("criteria").notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});
-
-export const userAchievements = pgTable("user_achievements", {
-  id: serial("id").primaryKey(),
-  userId: integer("user_id").references(() => users.id).notNull(),
-  achievementId: integer("achievement_id").references(() => achievements.id).notNull(),
-  unlockedAt: timestamp("unlocked_at").defaultNow().notNull(),
-  progress: json("progress").$type<{ completedTasks?: number; commentsPosted?: number; }>(),
 });
 
 export const notificationPreferences = pgTable("notification_preferences", {
@@ -191,17 +283,20 @@ export const notifications = pgTable("notifications", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
-export const teamPerformance = pgTable("team_performance", {
+
+export const companyProfiles = pgTable("company_profiles", {
   id: serial("id").primaryKey(),
-  userId: integer("user_id").references(() => users.id).notNull(),
-  tasksCompleted: integer("tasks_completed").notNull().default(0),
-  onTimeCompletion: integer("on_time_completion").notNull().default(0),
-  documentComments: integer("document_comments").notNull().default(0),
-  collaborationScore: integer("collaboration_score").notNull().default(0),
-  totalScore: integer("total_score").notNull().default(0),
+  userId: integer("user_id").references(() => users.id).notNull().unique(),
+  companyName: text("company_name").notNull(),
+  logo: text("logo_path"),
+  description: text("description"),
+  website: text("website"),
+  industry: text("industry"),
+  employeeCount: text("employee_count"),
+  foundedYear: integer("founded_year"),
+  headquarters: text("headquarters"),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
-
 
 export const loginSchema = z.object({
   username: z.string().min(1, "Username is required"),

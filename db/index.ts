@@ -8,5 +8,6 @@ if (!process.env.DATABASE_URL) {
   );
 }
 
+// Use neon with the pooled connection for better performance
 const sql = neon(process.env.DATABASE_URL);
 export const db = drizzle(sql, { schema });
