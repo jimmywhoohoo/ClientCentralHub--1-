@@ -183,9 +183,10 @@ export const teamPerformance = pgTable("team_performance", {
 });
 
 
-export const cloudStorageSettings = pgTable("cloud_storage_settings", {
+export const storageSettings = pgTable("storage_settings", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").references(() => users.id).notNull(),
+  localEnabled: boolean("local_enabled").default(true).notNull(),
   googleDrive: boolean("google_drive").default(false).notNull(),
   dropbox: boolean("dropbox").default(false).notNull(),
   oneDrive: boolean("one_drive").default(false).notNull(),
@@ -198,18 +199,18 @@ export const cloudStorageSettings = pgTable("cloud_storage_settings", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
-export const cloudStorageSettingsRelations = relations(cloudStorageSettings, ({ one }) => ({
+export const storageSettingsRelations = relations(storageSettings, ({ one }) => ({
   user: one(users, {
-    fields: [cloudStorageSettings.userId],
+    fields: [storageSettings.userId],
     references: [users.id],
   }),
 }));
 
-export const insertCloudStorageSettingsSchema = createInsertSchema(cloudStorageSettings);
-export const selectCloudStorageSettingsSchema = createSelectSchema(cloudStorageSettings);
+export const insertStorageSettingsSchema = createInsertSchema(storageSettings);
+export const selectStorageSettingsSchema = createSelectSchema(storageSettings);
 
-export type CloudStorageSettings = typeof cloudStorageSettings.$inferSelect;
-export type NewCloudStorageSettings = typeof cloudStorageSettings.$inferInsert;
+export type StorageSettings = typeof storageSettings.$inferSelect;
+export type NewStorageSettings = typeof storageSettings.$inferInsert;
 
 export const createDocumentSchema = z.object({
   name: z.string().min(1, "Name is required"),

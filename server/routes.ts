@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { setupWebSocket } from "./websocket";
 import { db } from "@db";
-import { tasks, users, files, companyProfiles, notificationPreferences, notifications, taskActivities, achievements, userAchievements, documentComments, cloudStorageSettings } from "@db/schema";
+import { tasks, users, files, companyProfiles, notificationPreferences, notifications, taskActivities, achievements, userAchievements, documentComments, cloudStorageSettings, storageSettings } from "@db/schema";
 import { eq, desc, or, asc, and, not, exists } from "drizzle-orm";
 import { errorHandler, apiErrorLogger } from "./error-handler";
 import { createTaskSchema, updateTaskSchema, updateCompanyProfileSchema, updateNotificationPreferencesSchema } from "@db/schema";
@@ -935,7 +935,7 @@ export function registerRoutes(app: Express): Server {
       const [totalCommentsResult] = await db
         .select({ count: sql<number>`count(*)::integer` })
         .from(documentComments)
-        .where(eq(documentComments.userId, req.user.id));
+                .where(eq(documentComments.userId, req.user.id));
 
       const totalCommentsCount = totalCommentsResult?.count || 0;
 
@@ -1164,23 +1164,30 @@ export function registerRoutes(app: Express): Server {
   // Add error handler middleware last
   app.use(errorHandler);
 
-  // Cloud Storage Settings Routes
-  app.get("/api/admin/settings/cloud-storage", async (req, res) => {
-    if (!req.isAuthenticated() || req.user.role !== "admin") {
-      return res.status(403).json({ error: "Not authorized" });
+  // Storage Settings Routes
+  app.get("/api/admin/settings/storage", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ error: "Not authenticated" });
     }
 
     try {
-      const [settings] = await db.query.cloudStorageSettings.findMany({
-        where: eq(cloudStorageSettings.userId, req.user.id),
-        limit: 1,
-      });
+      const [settings] = await db
+        .select()
+        .from(storageSettings)
+        .where(eq(storageSettings.userId, req.user.id))
+        .limit(1);
 
       if (!settings) {
         // Create default settings if they don't exist
-        const [newSettings] = await db.insert(cloudStorageSettings)
+        const [newSettings] = await db
+          .insert(storageSettings)
           .values({
             userId: req.user.id,
+            localEnabled: true,
+            googleDrive: false,
+            dropbox: false,
+            oneDrive: false,
+            mega: false,
           })
           .returning();
 
@@ -1189,99 +1196,111 @@ export function registerRoutes(app: Express): Server {
 
       res.json(settings);
     } catch (error) {
-      console.error("Error fetching cloud storage settings:", error);
-      res.status(500).json({ error: "Failed to fetch cloud storage settings" });
+      console.error("Error fetching storage settings:", error);
+      res.status(500).json({ error: "Failed to fetch storage settings" });
     }
   });
 
-  app.put("/api/admin/settings/cloud-storage", async (req, res) => {
-    if (!req.isAuthenticated() || req.user.role !== "admin") {
-      return res.status(403).json({ error: "Not authorized" });
+  app.put("/api/admin/settings/storage", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ error: "Not authenticated" });
     }
 
     try {
       const { serviceId, enabled } = req.body;
 
-      if (!serviceId || typeof enabled !== 'boolean') {
-        return res.status(400).json({ error: "Invalid input" });
+      const [settings] = await db
+        .select()
+        .from(storageSettings)
+        .where(eq(storageSettings.userId, req.user.id))
+        .limit(1);
+
+      if (!settings) {
+        return res.status(404).json({ error: "Settings not found" });
       }
 
-      const [settings] = await db.query.cloudStorageSettings.findMany({
-        where: eq(cloudStorageSettings.userId, req.user.id),
-        limit: 1,
-      });
-
-      if (settings) {
-        const [updated] = await db.update(cloudStorageSettings)
-          .set({
-            [serviceId]: enabled,
-            updatedAt: new Date(),
-          })
-          .where(eq(cloudStorageSettings.id, settings.id))
-          .returning();
-        res.json(updated);
-      } else {
-        const [created] = await db.insert(cloudStorageSettings)
-          .values({
-            userId: req.user.id,
-            [serviceId]: enabled,
-          })
-          .returning();
-        res.json(created);
+      // Update the specific service setting
+      const updates: Partial<typeof storageSettings.$inferSelect> = {};
+      switch (serviceId) {
+        case "local":
+          updates.localEnabled = enabled;
+          break;
+        case "googleDrive":
+          updates.googleDrive = enabled;
+          break;
+        case "dropbox":
+          updates.dropbox = enabled;
+          break;
+        case "oneDrive":
+          updates.oneDrive = enabled;
+          break;
+        case "mega":
+          updates.mega = enabled;
+          break;
+        default:
+          return res.status(400).json({ error: "Invalid service ID" });
       }
+
+      const [updatedSettings] = await db
+        .update(storageSettings)
+        .set({
+          ...updates,
+          updatedAt: new Date(),
+        })
+        .where(eq(storageSettings.id, settings.id))
+        .returning();
+
+      res.json(updatedSettings);
     } catch (error) {
-      console.error("Error updating cloud storage settings:", error);
-      res.status(500).json({ error: "Failed to update cloud storage settings" });
+      console.error("Error updating storage settings:", error);
+      res.status(500).json({ error: "Failed to update storage settings" });
     }
   });
 
-  app.post("/api/admin/settings/cloud-storage/:serviceId/connect", async (req, res) => {
-    if (!req.isAuthenticated() || req.user.role !== "admin") {
-      return res.status(403).json({ error: "Not authorized" });
+  app.post("/api/admin/settings/storage/:service/connect", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ error: "Not authenticated" });
     }
 
     try {
-      const { serviceId } = req.params;
-      const validServices = ["googleDrive", "dropbox", "oneDrive", "mega"];
+      const { service } = req.params;
+      const tokenField = `${service}Token` as keyof typeof storageSettings.$inferSelect;
 
-      if (!validServices.includes(serviceId)) {
-        return res.status(400).json({ error: "Invalid service" });
-      }
-
-      // TODO: Implement actual OAuth flow for each service
+      // Here you would implement the actual OAuth flow for each service
       // For now, we'll simulate a successful connection
-      const [settings] = await db.query.cloudStorageSettings.findMany({
-        where: eq(cloudStorageSettings.userId, req.user.id),
-        limit: 1,
-      });
+      const token = `mock_token_${Date.now()}`;
 
-      if (settings) {
-        const [updated] = await db.update(cloudStorageSettings)
-          .set({
-            [serviceId]: true,
-            [`${serviceId}Token`]: "mock-token-" + Date.now(),
-            updatedAt: new Date(),
-          })
-          .where(eq(cloudStorageSettings.id, settings.id))
-          .returning();
-        res.json(updated);
-      } else {
-        const [created] = await db.insert(cloudStorageSettings)
-          .values({
-            userId: req.user.id,
-            [serviceId]: true,
-            [`${serviceId}Token`]: "mock-token-" + Date.now(),
-          })
-          .returning();
-        res.json(created);
+      const [settings] = await db
+        .select()
+        .from(storageSettings)
+        .where(eq(storageSettings.userId, req.user.id))
+        .limit(1);
+
+      if (!settings) {
+        return res.status(404).json({ error: "Settings not found" });
       }
+
+      const updates: Partial<typeof storageSettings.$inferSelect> = {
+        [service]: true,
+        [tokenField]: token,
+        updatedAt: new Date(),
+      };
+
+      const [updatedSettings] = await db
+        .update(storageSettings)
+        .set(updates)
+        .where(eq(storageSettings.id, settings.id))
+        .returning();
+
+      res.json(updatedSettings);
     } catch (error) {
-      console.error("Error connecting cloud storage:", error);
-      res.status(500).json({ error: "Failed to connect cloud storage" });
+      console.error("Error connecting storage service:", error);
+      res.status(500).json({ error: "Failed to connect storage service" });
     }
   });
 
-  // Return the server instance
+  // ... rest of your routes ...
+
   const httpServer = createServer(app);
   return httpServer;
 }

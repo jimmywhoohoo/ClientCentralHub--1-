@@ -4,16 +4,19 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { SiGoogledrive, SiDropbox, SiMicrosoftOnedrive, SiMega } from "react-icons/si";
+import { HardDrive } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 
-type CloudService = {
+type StorageService = {
   id: string;
   name: string;
   icon: React.ReactNode;
   isConnected: boolean;
   isEnabled: boolean;
+  type: 'cloud' | 'local';
+  description: string;
 };
 
 export function CloudStorageSettings() {
@@ -21,54 +24,70 @@ export function CloudStorageSettings() {
   const queryClient = useQueryClient();
   const [isConnecting, setIsConnecting] = useState<string | null>(null);
 
-  // Fetch current cloud storage settings
   const { data: settings, isLoading } = useQuery({
-    queryKey: ['/api/admin/settings/cloud-storage'],
+    queryKey: ['/api/admin/settings/storage'],
     retry: false,
-    onError: (error: Error) => {
+    onError: () => {
       toast({
         title: "Error",
-        description: "Failed to load cloud storage settings",
+        description: "Failed to load storage settings",
         variant: "destructive",
       });
     }
   });
 
-  const [services, setServices] = useState<CloudService[]>([
+  const [services] = useState<StorageService[]>([
+    {
+      id: "local",
+      name: "Local Storage",
+      icon: <HardDrive className="w-6 h-6" />,
+      isConnected: true, // Local storage is always connected
+      isEnabled: settings?.localEnabled ?? true,
+      type: 'local',
+      description: "Store files on the local filesystem",
+    },
     {
       id: "googleDrive",
       name: "Google Drive",
       icon: <SiGoogledrive className="w-6 h-6" />,
-      isConnected: settings?.googleDrive || false,
-      isEnabled: settings?.googleDrive || false,
+      isConnected: settings?.googleDrive ?? false,
+      isEnabled: settings?.googleDrive ?? false,
+      type: 'cloud',
+      description: "Connect to Google Drive for cloud storage",
     },
     {
       id: "dropbox",
       name: "Dropbox",
       icon: <SiDropbox className="w-6 h-6" />,
-      isConnected: settings?.dropbox || false,
-      isEnabled: settings?.dropbox || false,
+      isConnected: settings?.dropbox ?? false,
+      isEnabled: settings?.dropbox ?? false,
+      type: 'cloud',
+      description: "Connect to Dropbox for cloud storage",
     },
     {
       id: "oneDrive",
       name: "OneDrive",
       icon: <SiMicrosoftOnedrive className="w-6 h-6" />,
-      isConnected: settings?.oneDrive || false,
-      isEnabled: settings?.oneDrive || false,
+      isConnected: settings?.oneDrive ?? false,
+      isEnabled: settings?.oneDrive ?? false,
+      type: 'cloud',
+      description: "Connect to OneDrive for cloud storage",
     },
     {
       id: "mega",
       name: "MEGA",
       icon: <SiMega className="w-6 h-6" />,
-      isConnected: settings?.mega || false,
-      isEnabled: settings?.mega || false,
+      isConnected: settings?.mega ?? false,
+      isEnabled: settings?.mega ?? false,
+      type: 'cloud',
+      description: "Connect to MEGA for cloud storage",
     },
   ]);
 
-  // Update cloud storage settings mutation
+  // Update storage settings mutation
   const updateSettingsMutation = useMutation({
     mutationFn: async ({ serviceId, enabled }: { serviceId: string; enabled: boolean }) => {
-      const response = await fetch('/api/admin/settings/cloud-storage', {
+      const response = await fetch('/api/admin/settings/storage', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ serviceId, enabled }),
@@ -89,10 +108,10 @@ export function CloudStorageSettings() {
             : service
         )
       );
-      queryClient.invalidateQueries({ queryKey: ['/api/admin/settings/cloud-storage'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/settings/storage'] });
       toast({
         title: "Settings Updated",
-        description: "Cloud storage settings have been saved successfully.",
+        description: "Storage settings have been saved successfully.",
       });
     },
     onError: (error: Error) => {
@@ -109,7 +128,7 @@ export function CloudStorageSettings() {
     mutationFn: async (serviceId: string) => {
       setIsConnecting(serviceId);
       try {
-        const response = await fetch(`/api/admin/settings/cloud-storage/${serviceId}/connect`, {
+        const response = await fetch(`/api/admin/settings/storage/${serviceId}/connect`, {
           method: 'POST',
           credentials: 'include',
         });
@@ -131,7 +150,7 @@ export function CloudStorageSettings() {
             : service
         )
       );
-      queryClient.invalidateQueries({ queryKey: ['/api/admin/settings/cloud-storage'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/settings/storage'] });
       toast({
         title: "Connected Successfully",
         description: `${services.find(s => s.id === serviceId)?.name} has been connected.`,
@@ -158,7 +177,7 @@ export function CloudStorageSettings() {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Cloud Storage Integration</CardTitle>
+          <CardTitle>Storage Integration</CardTitle>
           <CardDescription>Loading storage settings...</CardDescription>
         </CardHeader>
         <CardContent className="flex items-center justify-center py-8">
@@ -171,9 +190,9 @@ export function CloudStorageSettings() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Cloud Storage Integration</CardTitle>
+        <CardTitle>Storage Integration</CardTitle>
         <CardDescription>
-          Connect and manage your cloud storage services
+          Configure local and cloud storage options
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -190,12 +209,17 @@ export function CloudStorageSettings() {
                 <div>
                   <h4 className="font-medium">{service.name}</h4>
                   <p className="text-sm text-muted-foreground">
-                    {service.isConnected ? "Connected" : "Not connected"}
+                    {service.description}
                   </p>
+                  {service.type === 'cloud' && (
+                    <p className="text-sm text-muted-foreground mt-1">
+                      {service.isConnected ? "Connected" : "Not connected"}
+                    </p>
+                  )}
                 </div>
               </div>
               <div className="flex items-center space-x-4">
-                {service.isConnected ? (
+                {(service.type === 'local' || service.isConnected) ? (
                   <div className="flex items-center space-x-2">
                     <Switch
                       id={`${service.id}-toggle`}
