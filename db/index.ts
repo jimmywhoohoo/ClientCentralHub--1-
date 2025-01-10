@@ -1,20 +1,35 @@
-import { AppDataSource } from "./data-source";
-import { User, Document, DocumentVersion } from "./entities";
+import { Pool } from '@neondatabase/serverless';
+import { drizzle } from 'drizzle-orm/neon-serverless';
+import * as schema from "@db/schema";
 
-// Export all entities
-export { User, Document, DocumentVersion };
+if (!process.env.DATABASE_URL) {
+  throw new Error(
+    "DATABASE_URL must be set. Did you forget to provision a database?",
+  );
+}
 
-// Export the initialized data source
-export const db = AppDataSource;
+const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+
+export const db = drizzle(pool, { schema });
 
 // Export function for testing connection
 export async function testConnection() {
   try {
-    if (!AppDataSource.isInitialized) {
-      await AppDataSource.initialize();
+    const client = await pool.connect();
+    try {
+      await client.query('SELECT NOW()');
+      console.log('Database connection successful');
+
+      // Log connection details (without sensitive info)
+      console.log("Database connection established with:");
+      console.log(`- Host: ${process.env.PGHOST}`);
+      console.log(`- Database: ${process.env.PGDATABASE}`);
+      console.log(`- Port: ${process.env.PGPORT}`);
+
+      return true;
+    } finally {
+      client.release();
     }
-    console.log('Database connection successful');
-    return true;
   } catch (error) {
     console.error('Database connection failed:', error);
     throw error;

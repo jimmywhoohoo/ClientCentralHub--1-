@@ -1,9 +1,7 @@
-import "reflect-metadata";
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
-import { setupAuth } from "./auth";
-import { AppDataSource, initializeDatabase } from "@db/data-source";
+import { testConnection } from "@db";
 
 const app = express();
 app.use(express.json());
@@ -45,9 +43,9 @@ const RETRY_DELAY = 2000;
 
 async function startServer(retryCount = 0) {
   try {
-    // Initialize database connection
-    await initializeDatabase();
-    console.log("Database initialized successfully");
+    // Test database connection first
+    await testConnection();
+    console.log("Database connection established successfully");
 
     // Set up authentication before registering routes
     setupAuth(app);
