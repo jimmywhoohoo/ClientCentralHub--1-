@@ -26,8 +26,8 @@ export const documents = sqliteTable("documents", {
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`CURRENT_TIMESTAMP`),
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().default(sql`CURRENT_TIMESTAMP`),
   isArchived: integer("is_archived", { mode: "boolean" }).notNull().default(false),
-  metadata: text("metadata", { mode: "json" }),
-  permissions: text("permissions", { mode: "json" }).notNull().default('{"public":false,"collaborators":[]}'),
+  metadata: text("metadata").notNull().default('{}'),
+  permissions: text("permissions").notNull().default('{"public":false,"collaborators":[]}'),
 });
 
 // Document versions table
