@@ -52,8 +52,9 @@ import {
 import { TaskDashboard } from "../components/Dashboard/TaskDashboard";
 import { FileShareDialog } from "../components/Dashboard/FileShareDialog";
 import { UserTaskDetails } from "../components/Dashboard/UserTaskDetails";
-import {Label} from "@/components/ui/label" // Added import for Label
+import {Label} from "@/components/ui/label"
 import { TeamAnalytics } from "../components/Dashboard/TeamAnalytics";
+import { CloudStorageSettings } from "../components/Dashboard/CloudStorageSettings"; // Added import
 
 type FileWithUploader = File & {
   uploader: User;
@@ -400,6 +401,9 @@ export default function AdminPage() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <TeamAnalytics />
           </div>
+
+          <CloudStorageSettings />
+
           <Card>
             <CardHeader>
               <CardTitle>User Management</CardTitle>
@@ -953,8 +957,7 @@ export default function AdminPage() {
               <div>
                 <h4 className="font-medium text-sm">Uploader Information</h4>
                 <dl className="mt-2 space-y-2">
-                  <div>
-                    <dt className="text-sm text-muted-foreground">Username</dt>
+                  <div>                    <dt className="text-sm text-muted-foreground">Username</dt>
                     <dd>{selectedFile?.uploader.username}</dd>
                   </div>
                   <div>
@@ -971,6 +974,7 @@ export default function AdminPage() {
           </div>
         </DialogContent>
       </Dialog>
+
       <AlertDialog open={!!fileToDelete} onOpenChange={(open) => !open && setFileToDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -1002,6 +1006,7 @@ export default function AdminPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
       <AlertDialog open={!!userToDelete} onOpenChange={(open) => !open && setUserToDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -1033,17 +1038,20 @@ export default function AdminPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
       <FileShareDialog
         file={fileToShare}
         users={data?.users || []}
         open={!!fileToShare}
         onOpenChange={(open) => !open && setFileToShare(null)}
       />
+
       <UserTaskDetails 
         user={selectedUserTasks}
         open={!!selectedUserTasks}
         onOpenChange={(open) => !open && setSelectedUserTasks(null)}
       />
+
       <Dialog open={showNewUserDialog} onOpenChange={setShowNewUserDialog}>
         <DialogContent>
           <DialogHeader>
