@@ -1,7 +1,6 @@
-import { pgTable, text, integer, boolean, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema, createSelectSchema } from "drizzle-zod";
 import { z } from "zod";
-import { sql } from "drizzle-orm";
 
 // Define valid user roles
 export const UserRole = {
@@ -10,7 +9,7 @@ export const UserRole = {
 } as const;
 
 export const users = pgTable("users", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+  id: serial("id").primaryKey(),
   username: text("username").notNull().unique(),
   password: text("password").notNull(),
   email: text("email").notNull(),
@@ -23,10 +22,10 @@ export const users = pgTable("users", {
 
 // Document table definition
 export const documents = pgTable("documents", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+  id: serial("id").primaryKey(),
   name: text("name").notNull(),
   content: text("content"),
-  userId: integer("user_id").references(() => users.id),
+  userId: serial("user_id").references(() => users.id),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });

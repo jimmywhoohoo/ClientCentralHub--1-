@@ -1,7 +1,6 @@
-import { drizzle } from "drizzle-orm/neon-serverless";
-import ws from "ws";
+import { drizzle } from 'drizzle-orm/node-postgres';
+import { Pool } from 'pg';
 import * as schema from "@db/schema";
-import { sql } from "drizzle-orm";
 
 if (!process.env.DATABASE_URL) {
   throw new Error(
@@ -9,16 +8,27 @@ if (!process.env.DATABASE_URL) {
   );
 }
 
-export const db = drizzle({
+// Create a PostgreSQL pool
+const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  schema,
-  webSocket: ws,
+  ssl: process.env.NODE_ENV === 'production' ? {
+    rejectUnauthorized: false
+  } : undefined
 });
+
+// Test database connection
+pool.on('error', (err) => {
+  console.error('Unexpected error on idle client', err);
+  process.exit(-1);
+});
+
+// Create the database instance
+export const db = drizzle(pool, { schema });
 
 // Test database connection
 async function testConnection() {
   try {
-    await db.execute(sql`SELECT 1`);
+    await pool.query('SELECT NOW()');
     console.log('Database connection successful');
   } catch (err) {
     console.error('Database connection error:', err);
