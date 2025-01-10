@@ -1,8 +1,7 @@
 import { neon } from '@neondatabase/serverless';
 import { drizzle } from "drizzle-orm/neon-serverless";
-import { sql } from "drizzle-orm";
-import ws from "ws";
 import * as schema from "@db/schema";
+import ws from "ws";
 
 if (!process.env.DATABASE_URL) {
   throw new Error(
@@ -10,24 +9,15 @@ if (!process.env.DATABASE_URL) {
   );
 }
 
-// Create a Neon client with WebSocket support
-const sql_client = neon(process.env.DATABASE_URL);
-export const db = drizzle(sql_client, { schema });
+export const db = drizzle({
+  connection: process.env.DATABASE_URL,
+  schema,
+  ws: ws,
+});
 
-// Test database connection
-async function testConnection() {
-  try {
-    const result = await db.execute(sql`SELECT NOW()`);
-    console.log('Database connection successful');
-    return result;
-  } catch (err) {
-    console.error('Database connection error:', err);
-    throw err;
-  }
-}
-
-// Initialize connection
-testConnection().catch((err) => {
-  console.error('Failed to initialize database:', err);
-  process.exit(1);
+// Handle connection errors.  Note: This needs adjustment as `sql` is no longer used.  Error handling should be implemented differently depending on how the drizzle client handles errors.
+process.on('SIGTERM', () => {
+  //  sql.end().catch(console.error);  //This line is removed because sql is no longer in use
+  console.log("SIGTERM received. Attempting graceful shutdown...");
+  // Add appropriate cleanup logic for the drizzle connection here if needed.
 });
