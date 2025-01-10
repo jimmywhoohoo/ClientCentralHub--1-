@@ -3,6 +3,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { AlertCircle, Loader2 } from "lucide-react";
 import DashboardPage from "@/pages/DashboardPage";
 import AuthPage from "@/pages/AuthPage";
+import AdminLoginPage from "@/pages/AdminLoginPage";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { Toaster } from "@/components/ui/toaster";
 import { useUser } from "@/hooks/use-user";
@@ -40,6 +41,11 @@ function App() {
 
   if (isLoading) {
     return <LoadingSpinner />;
+  }
+
+  // Handle admin login route separately
+  if (window.location.pathname === '/admin/login') {
+    return <AdminLoginPage />;
   }
 
   // If user is not logged in, show auth page
