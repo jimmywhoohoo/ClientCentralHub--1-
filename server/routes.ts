@@ -3,10 +3,10 @@ import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { setupWebSocket } from "./websocket";
 import { db } from "@db";
-import { tasks, users, files, companyProfiles, notificationPreferences, notifications, taskActivities, achievements, userAchievements, documentComments, cloudStorageSettings, storageSettings, documents } from "@db/schema";
-import { eq, desc, or, asc, and, not, exists } from "drizzle-orm";
+import { tasks, users, files, companyProfiles, notificationPreferences, notifications, taskActivities, achievements, userAchievements, documentComments, documents } from "@db/schema";
+import { eq, desc, or, asc, and, not } from "drizzle-orm";
 import { errorHandler, apiErrorLogger } from "./error-handler";
-import { createTaskSchema, updateTaskSchema, updateCompanyProfileSchema, updateNotificationPreferencesSchema } from "@db/schema";
+import { createTaskSchema, updateTaskSchema, updateCompanyProfileSchema, updateNotificationPreferencesSchema, createDocumentSchema } from "@db/schema";
 import { sql } from "drizzle-orm";
 import { generateThumbnail } from './services/thumbnail';
 import path from 'path';
@@ -932,7 +932,7 @@ export function registerRoutes(app: Express): Server {
       const completedTasksCount = completedTasksResult?.count || 0;
 
       // Gettotal comments for progress calculation
-      const [totalCommentsResult] = await db
+            const [totalCommentsResult] = await db
         .select({ count: sql<number>`count(*)::integer` })
         .from(documentComments)
         .where(eq(documentComments.userId, req.user.id));
@@ -1362,6 +1362,129 @@ export function registerRoutes(app: Express): Server {
     } catch (error) {
       console.error("Error updating document:", error);
       res.status(500).json({ error: "Failed to update document" });
+    }
+  });
+
+  // Document Routes
+  app.get("/api/documents", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ error: "Not authenticated" });
+    }
+
+    try {
+      const userDocuments = await db.query.documents.findMany({
+        where: eq(documents.createdBy, req.user.id),
+        orderBy: [desc(documents.updatedAt)],
+      });
+
+      res.json(userDocuments);
+    } catch (error) {
+      console.error("Error fetching documents:", error);
+      res.status(500).json({ error: "Failed to fetch documents" });
+    }
+  });
+
+  app.post("/api/documents", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ error: "Not authenticated" });
+    }
+
+    try {
+      const result = createDocumentSchema.safeParse(req.body);
+      if (!result.success) {
+        return res.status(400).json({
+          error: "Invalid input: " + result.error.issues.map(i => i.message).join(", ")
+        });
+      }
+
+      const [document] = await db.insert(documents)
+        .values({
+          ...result.data,
+          createdBy: req.user.id,
+          updatedAt: new Date(),
+        })
+        .returning();
+
+      res.json(document);
+    } catch (error) {
+      console.error("Error creating document:", error);
+      res.status(500).json({ error: "Failed to create document" });
+    }
+  });
+
+  app.put("/api/documents/:id", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ error: "Not authenticated" });
+    }
+
+    try {
+      const result = createDocumentSchema.safeParse(req.body);
+      if (!result.success) {
+        return res.status(400).json({
+          error: "Invalid input: " + result.error.issues.map(i => i.message).join(", ")
+        });
+      }
+
+      const documentId = parseInt(req.params.id);
+
+      // Check if document exists and belongs to user
+      const [existingDocument] = await db.query.documents.findMany({
+        where: eq(documents.id, documentId),
+        limit: 1,
+      });
+
+      if (!existingDocument) {
+        return res.status(404).json({ error: "Document not found" });
+      }
+
+      if (existingDocument.createdBy !== req.user.id) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      const [document] = await db.update(documents)
+        .set({
+          ...result.data,
+          updatedAt: new Date(),
+        })
+        .where(eq(documents.id, documentId))
+        .returning();
+
+      res.json(document);
+    } catch (error) {
+      console.error("Error updating document:", error);
+      res.status(500).json({ error: "Failed to update document" });
+    }
+  });
+
+  app.delete("/api/documents/:id", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ error: "Not authenticated" });
+    }
+
+    try {
+      const documentId = parseInt(req.params.id);
+
+      // Check if document exists and belongs to user
+      const [document] = await db.query.documents.findMany({
+        where: eq(documents.id, documentId),
+        limit: 1,
+      });
+
+      if (!document) {
+        return res.status(404).json({ error: "Document not found" });
+      }
+
+      if (document.createdBy !== req.user.id) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      await db.delete(documents)
+        .where(eq(documents.id, documentId));
+
+      res.json({ message: "Document deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting document:", error);
+      res.status(500).json({ error: "Failed to delete document" });
     }
   });
 
