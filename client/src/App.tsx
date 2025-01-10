@@ -6,6 +6,7 @@ import AdminLoginPage from "./pages/AdminLoginPage";
 import DashboardPage from "./pages/DashboardPage";
 import SettingsPage from "./pages/SettingsPage";
 import AdminPage from "./pages/AdminPage";
+import DocumentPage from "./pages/DocumentPage";
 import { useUser } from "./hooks/use-user";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { useEffect } from "react";
@@ -95,6 +96,9 @@ function App() {
       </Route>
       <Route path="/admin">
         <AdminRoute component={AdminPage} />
+      </Route>
+      <Route path="/documents/:id">
+        <ProtectedRoute component={DocumentPage} />
       </Route>
       <Route path="/">
         <ProtectedRoute component={DashboardPage} />

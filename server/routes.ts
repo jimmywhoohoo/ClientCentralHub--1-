@@ -1164,7 +1164,7 @@ export function registerRoutes(app: Express): Server {
   // Add error handler middleware last
   app.use(errorHandler);
 
-  // Storage Settings Routes
+  // Add storage routes after the existing routes
   app.get("/api/storage/settings", async (req, res) => {
     if (!req.isAuthenticated()) {
       return res.status(401).json({ error: "Not authenticated" });
@@ -1206,31 +1206,38 @@ export function registerRoutes(app: Express): Server {
 
     try {
       const { serviceId, enabled } = req.body;
-      const [settings] = await db.query.storageSettings.findMany({
+      const [existingSettings] = await db.query.storageSettings.findMany({
         where: eq(storageSettings.userId, req.user.id),
         limit: 1,
       });
 
-      if (!settings) {
+      if (!existingSettings) {
         return res.status(404).json({ error: "Settings not found" });
       }
 
-      const updateData: Partial<typeof storageSettings.$inferSelect> = {};
+      const updateData: Partial<typeof storageSettings.$inferInsert> = {
+        updatedAt: new Date(),
+      };
+
       switch (serviceId) {
         case 'local':
           updateData.localEnabled = enabled;
           break;
         case 'googleDrive':
           updateData.googleDrive = enabled;
+          if (!enabled) updateData.googleDriveToken = null;
           break;
         case 'dropbox':
           updateData.dropbox = enabled;
+          if (!enabled) updateData.dropboxToken = null;
           break;
         case 'oneDrive':
           updateData.oneDrive = enabled;
+          if (!enabled) updateData.oneDriveToken = null;
           break;
         case 'mega':
           updateData.mega = enabled;
+          if (!enabled) updateData.megaToken = null;
           break;
         default:
           return res.status(400).json({ error: "Invalid service ID" });
@@ -1238,7 +1245,7 @@ export function registerRoutes(app: Express): Server {
 
       const [updated] = await db.update(storageSettings)
         .set(updateData)
-        .where(eq(storageSettings.id, settings.id))
+        .where(eq(storageSettings.id, existingSettings.id))
         .returning();
 
       res.json(updated);
@@ -1248,14 +1255,17 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Cloud Storage Connection Routes
+  // Cloud storage connection endpoints
   app.post("/api/storage/:service/connect", async (req, res) => {
     if (!req.isAuthenticated()) {
       return res.status(401).json({ error: "Not authenticated" });
     }
 
-    const service = req.params.service;
+    const { service } = req.params;
+
     try {
+      // For now, simulate successful connection
+      // In a real implementation, this would handle OAuth flow
       const [settings] = await db.query.storageSettings.findMany({
         where: eq(storageSettings.userId, req.user.id),
         limit: 1,
@@ -1265,26 +1275,26 @@ export function registerRoutes(app: Express): Server {
         return res.status(404).json({ error: "Settings not found" });
       }
 
-      // Simulate connection process (in real app, this would redirect to OAuth)
-      const updateData: Partial<typeof storageSettings.$inferSelect> = {};
-      const tokenValue = `mock_token_${Date.now()}`;
+      const updateData: Partial<typeof storageSettings.$inferInsert> = {
+        updatedAt: new Date(),
+      };
 
       switch (service) {
         case 'googleDrive':
           updateData.googleDrive = true;
-          updateData.googleDriveToken = tokenValue;
+          updateData.googleDriveToken = 'simulated-token';
           break;
         case 'dropbox':
           updateData.dropbox = true;
-          updateData.dropboxToken = tokenValue;
+          updateData.dropboxToken = 'simulated-token';
           break;
         case 'oneDrive':
           updateData.oneDrive = true;
-          updateData.oneDriveToken = tokenValue;
+          updateData.oneDriveToken = 'simulated-token';
           break;
         case 'mega':
           updateData.mega = true;
-          updateData.megaToken = tokenValue;
+          updateData.megaToken = 'simulated-token';
           break;
         default:
           return res.status(400).json({ error: "Invalid service" });
@@ -1301,8 +1311,6 @@ export function registerRoutes(app: Express): Server {
       res.status(500).json({ error: `Failed to connect to ${service}` });
     }
   });
-
-  // ... rest of your routes ...
 
   const httpServer = createServer(app);
   return httpServer;
