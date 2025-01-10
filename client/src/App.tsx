@@ -47,12 +47,18 @@ function App() {
     return <AuthPage />;
   }
 
-  // If user is logged in, show dashboard or 404
+  // If user is logged in, show protected routes
   return (
     <Switch>
-      <Route path="/" component={() => <DashboardPage />} />
-      <Route path="/dashboard" component={() => <DashboardPage />} />
-      <Route component={() => <NotFound />} />
+      <Route path="/">
+        <DashboardPage />
+      </Route>
+      <Route path="/dashboard">
+        <DashboardPage />
+      </Route>
+      <Route>
+        <NotFound />
+      </Route>
     </Switch>
   );
 }
