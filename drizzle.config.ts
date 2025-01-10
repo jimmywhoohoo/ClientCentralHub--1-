@@ -1,18 +1,7 @@
 import { defineConfig } from "drizzle-kit";
-import * as dotenv from "dotenv";
 
-dotenv.config();
-
-const {
-  PGHOST,
-  PGUSER,
-  PGPASSWORD,
-  PGDATABASE,
-  PGPORT
-} = process.env;
-
-if (!PGHOST || !PGUSER || !PGPASSWORD || !PGDATABASE || !PGPORT) {
-  throw new Error("Database configuration missing. Please ensure the database is provisioned");
+if (!process.env.DATABASE_URL) {
+  throw new Error("DATABASE_URL environment variable is not set. Ensure the database is provisioned.");
 }
 
 export default defineConfig({
@@ -20,12 +9,8 @@ export default defineConfig({
   schema: "./db/schema.ts",
   driver: "pg",
   dbCredentials: {
-    host: PGHOST,
-    user: PGUSER,
-    password: PGPASSWORD,
-    database: PGDATABASE,
-    port: parseInt(PGPORT, 10),
+    connectionString: process.env.DATABASE_URL,
   },
   verbose: true,
-  strict: true
+  strict: true,
 });

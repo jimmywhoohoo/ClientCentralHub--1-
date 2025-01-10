@@ -1,58 +1,35 @@
-import { Pool } from 'pg';
-import { drizzle } from "drizzle-orm/node-postgres";
+import { drizzle } from "drizzle-orm/neon-serverless";
+import ws from "ws";
 import * as schema from "@db/schema";
 
-// Get database configuration from environment variables
-const {
-  PGHOST,
-  PGUSER,
-  PGPASSWORD,
-  PGDATABASE,
-  PGPORT
-} = process.env;
-
-if (!PGHOST || !PGUSER || !PGPASSWORD || !PGDATABASE || !PGPORT) {
-  throw new Error("Database configuration missing. Database not provisioned correctly.");
+if (!process.env.DATABASE_URL) {
+  throw new Error(
+    "DATABASE_URL must be set. Did you forget to provision a database?",
+  );
 }
 
-// Create connection pool with retry logic
-const pool = new Pool({
-  host: PGHOST,
-  user: PGUSER,
-  password: PGPASSWORD,
-  database: PGDATABASE,
-  port: parseInt(PGPORT, 10),
-  max: 20,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 5000,
+export const db = drizzle({
+  connection: process.env.DATABASE_URL,
+  schema,
+  ws: ws,
 });
-
-// Test database connection
-pool.on('error', (err) => {
-  console.error('Unexpected error on idle client', err);
-  process.exit(-1);
-});
-
-// Create the database connection with proper configuration
-export const db = drizzle(pool, { schema });
 
 // Handle cleanup on application shutdown
 process.on('SIGTERM', async () => {
   console.log("Closing database connections...");
-  await pool.end();
+  // No pool to end with neon-serverless
 });
 
 process.on('SIGINT', async () => {
   console.log("Closing database connections...");
-  await pool.end();
+  // No pool to end with neon-serverless
 });
 
-// Export pool for testing connection
+// Export function for testing connection
 export const testConnection = async () => {
   try {
-    const client = await pool.connect();
-    await client.query('SELECT 1');
-    client.release();
+    // For neon-serverless, we'll test by running a simple select query
+    const result = await db.select().from(schema.users).limit(1);
     console.log('Database connection successful');
     return true;
   } catch (error) {
