@@ -1,10 +1,20 @@
 import { Switch, Route } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, Loader2 } from "lucide-react";
 import DashboardPage from "./pages/DashboardPage";
+import AuthPage from "./pages/AuthPage";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { Toaster } from "@/components/ui/toaster";
+import { useUser } from "@/hooks/use-user";
 
+// Loading spinner component
+function LoadingSpinner() {
+  return (
+    <div className="flex items-center justify-center min-h-screen">
+      <Loader2 className="h-8 w-8 animate-spin text-border" />
+    </div>
+  );
+}
 
 // fallback 404 not found page
 function NotFound() {
@@ -26,6 +36,16 @@ function NotFound() {
 }
 
 function App() {
+  const { user, isLoading } = useUser();
+
+  if (isLoading) {
+    return <LoadingSpinner />;
+  }
+
+  if (!user) {
+    return <AuthPage />;
+  }
+
   return (
     <Switch>
       <Route path="/" component={DashboardPage} />
