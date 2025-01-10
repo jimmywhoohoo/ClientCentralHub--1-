@@ -3,20 +3,27 @@ import * as dotenv from "dotenv";
 
 dotenv.config();
 
-if (!process.env.PGDATABASE || !process.env.PGUSER || !process.env.PGPASSWORD || !process.env.PGHOST) {
-  throw new Error("Database credentials not found. Make sure the database is provisioned.");
+if (!process.env.DATABASE_URL) {
+  throw new Error("DATABASE_URL must be set. Did you forget to provision a database?");
 }
+
+const [protocol, rest] = process.env.DATABASE_URL.split('://');
+const [credentials, hostAndDb] = rest.split('@');
+const [username, password] = credentials.split(':');
+const [hostAndPort, database] = hostAndDb.split('/');
+const [host, port] = hostAndPort.split(':');
 
 export default defineConfig({
   out: "./migrations",
   schema: "./db/schema.ts",
   dialect: "postgresql",
   dbCredentials: {
-    host: process.env.PGHOST,
-    user: process.env.PGUSER,
-    password: process.env.PGPASSWORD,
-    database: process.env.PGDATABASE,
-    port: parseInt(process.env.PGPORT || "5432", 10),
+    host,
+    port: parseInt(port || "5432", 10),
+    user: username,
+    password,
+    database,
+    ssl: true
   },
   verbose: true,
   strict: true,
