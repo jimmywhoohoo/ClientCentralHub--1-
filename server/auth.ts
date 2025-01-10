@@ -5,9 +5,9 @@ import session from "express-session";
 import createMemoryStore from "memorystore";
 import { scrypt, randomBytes, timingSafeEqual } from "crypto";
 import { promisify } from "util";
-import { users, insertUserSchema, loginSchema } from "@db/schema";
+import { users, UserRole, clientRegisterSchema, loginSchema, adminLoginSchema } from "@db/schema";
 import { db } from "@db";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 
 const scryptAsync = promisify(scrypt);
 const crypto = {
@@ -42,30 +42,65 @@ export function setupAuth(app: Express) {
   app.use(passport.initialize());
   app.use(passport.session());
 
-  passport.use(
-    new LocalStrategy(async (username, password, done) => {
-      try {
-        const [user] = await db
-          .select()
-          .from(users)
-          .where(eq(users.username, username))
-          .limit(1);
+  // Client authentication strategy
+  passport.use('client-local', new LocalStrategy(async (username, password, done) => {
+    try {
+      const [user] = await db
+        .select()
+        .from(users)
+        .where(
+          and(
+            eq(users.username, username),
+            eq(users.role, UserRole.CLIENT),
+            eq(users.active, true)
+          )
+        )
+        .limit(1);
 
-        if (!user) {
-          return done(null, false, { message: "Incorrect username." });
-        }
-
-        const isMatch = await crypto.compare(password, user.password);
-        if (!isMatch) {
-          return done(null, false, { message: "Incorrect password." });
-        }
-
-        return done(null, user);
-      } catch (err) {
-        return done(err);
+      if (!user) {
+        return done(null, false, { message: "Invalid credentials." });
       }
-    })
-  );
+
+      const isMatch = await crypto.compare(password, user.password);
+      if (!isMatch) {
+        return done(null, false, { message: "Invalid credentials." });
+      }
+
+      return done(null, user);
+    } catch (err) {
+      return done(err);
+    }
+  }));
+
+  // Admin authentication strategy
+  passport.use('admin-local', new LocalStrategy(async (username, password, done) => {
+    try {
+      const [user] = await db
+        .select()
+        .from(users)
+        .where(
+          and(
+            eq(users.username, username),
+            eq(users.role, UserRole.ADMIN),
+            eq(users.active, true)
+          )
+        )
+        .limit(1);
+
+      if (!user) {
+        return done(null, false, { message: "Invalid admin credentials." });
+      }
+
+      const isMatch = await crypto.compare(password, user.password);
+      if (!isMatch) {
+        return done(null, false, { message: "Invalid admin credentials." });
+      }
+
+      return done(null, user);
+    } catch (err) {
+      return done(err);
+    }
+  }));
 
   passport.serializeUser((user, done) => {
     done(null, user.id);
@@ -84,10 +119,10 @@ export function setupAuth(app: Express) {
     }
   });
 
-  // Auth routes
+  // Client registration
   app.post("/api/register", async (req, res) => {
     try {
-      const result = insertUserSchema.safeParse(req.body);
+      const result = clientRegisterSchema.safeParse(req.body);
       if (!result.success) {
         return res.status(400).json({
           ok: false,
@@ -98,7 +133,8 @@ export function setupAuth(app: Express) {
       const { username, password, email, fullName, companyName } = result.data;
 
       // Check if username already exists
-      const [existingUser] = await db.select()
+      const [existingUser] = await db
+        .select()
         .from(users)
         .where(eq(users.username, username))
         .limit(1);
@@ -110,10 +146,8 @@ export function setupAuth(app: Express) {
         });
       }
 
-      // Hash password
+      // Hash password and create user
       const hashedPassword = await crypto.hash(password);
-
-      // Create new user
       const [user] = await db.insert(users)
         .values({
           username,
@@ -121,10 +155,11 @@ export function setupAuth(app: Express) {
           email,
           fullName,
           companyName,
+          role: UserRole.CLIENT,
+          active: true,
         })
         .returning();
 
-      // Auto login after registration
       req.login(user, (err) => {
         if (err) {
           return res.status(500).json({
@@ -141,6 +176,7 @@ export function setupAuth(app: Express) {
             username: user.username,
             email: user.email,
             fullName: user.fullName,
+            role: user.role,
           }
         });
       });
@@ -153,6 +189,7 @@ export function setupAuth(app: Express) {
     }
   });
 
+  // Client login
   app.post("/api/login", (req, res, next) => {
     const result = loginSchema.safeParse(req.body);
     if (!result.success) {
@@ -162,7 +199,7 @@ export function setupAuth(app: Express) {
       });
     }
 
-    passport.authenticate("local", (err: any, user: Express.User | false, info: any) => {
+    passport.authenticate("client-local", (err: any, user: Express.User | false, info: any) => {
       if (err) {
         return res.status(500).json({
           ok: false,
@@ -173,7 +210,7 @@ export function setupAuth(app: Express) {
       if (!user) {
         return res.status(400).json({
           ok: false,
-          message: info.message || "Login failed"
+          message: info.message || "Invalid credentials"
         });
       }
 
@@ -193,6 +230,55 @@ export function setupAuth(app: Express) {
             username: user.username,
             email: user.email,
             fullName: user.fullName,
+            role: user.role,
+          }
+        });
+      });
+    })(req, res, next);
+  });
+
+  // Admin login
+  app.post("/api/admin/login", (req, res, next) => {
+    const result = adminLoginSchema.safeParse(req.body);
+    if (!result.success) {
+      return res.status(400).json({
+        ok: false,
+        message: result.error.issues.map(i => i.message).join(", ")
+      });
+    }
+
+    passport.authenticate("admin-local", (err: any, user: Express.User | false, info: any) => {
+      if (err) {
+        return res.status(500).json({
+          ok: false,
+          message: "Login failed"
+        });
+      }
+
+      if (!user) {
+        return res.status(400).json({
+          ok: false,
+          message: info.message || "Invalid admin credentials"
+        });
+      }
+
+      req.login(user, (err) => {
+        if (err) {
+          return res.status(500).json({
+            ok: false,
+            message: "Login failed"
+          });
+        }
+
+        return res.json({
+          ok: true,
+          message: "Admin login successful",
+          user: {
+            id: user.id,
+            username: user.username,
+            email: user.email,
+            fullName: user.fullName,
+            role: user.role,
           }
         });
       });
@@ -222,6 +308,7 @@ export function setupAuth(app: Express) {
         username: user.username,
         email: user.email,
         fullName: user.fullName,
+        role: user.role,
       });
     }
     res.status(401).json({

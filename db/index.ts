@@ -1,16 +1,25 @@
-import { drizzle } from 'drizzle-orm/better-sqlite3';
-import Database from 'better-sqlite3';
+import { drizzle } from "drizzle-orm/neon-serverless";
+import ws from "ws";
 import * as schema from "@db/schema";
+import { sql } from "drizzle-orm";
 
-const sqlite = new Database('sqlite.db');
-export const db = drizzle(sqlite);
+if (!process.env.DATABASE_URL) {
+  throw new Error(
+    "DATABASE_URL must be set. Did you forget to provision a database?",
+  );
+}
+
+export const db = drizzle({
+  connectionString: process.env.DATABASE_URL,
+  schema,
+  webSocket: ws,
+});
 
 // Test database connection
 async function testConnection() {
   try {
-    const result = sqlite.prepare('SELECT 1').get();
+    await db.execute(sql`SELECT 1`);
     console.log('Database connection successful');
-    return result;
   } catch (err) {
     console.error('Database connection error:', err);
     throw err;

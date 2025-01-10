@@ -1,14 +1,15 @@
 import { defineConfig } from "drizzle-kit";
-import { config } from "dotenv";
 
-config();
+if (!process.env.DATABASE_URL) {
+  throw new Error("DATABASE_URL must be set. Did you forget to provision a database?");
+}
 
 export default defineConfig({
-  out: "./migrations",
   schema: "./db/schema.ts",
-  driver: 'better-sqlite',
+  out: "./migrations",
+  dialect: "postgresql",
   dbCredentials: {
-    url: 'sqlite.db'
+    connectionString: process.env.DATABASE_URL,
   },
   verbose: true,
   strict: true
