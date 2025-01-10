@@ -1,11 +1,11 @@
 import { Switch, Route } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
 import { AlertCircle, Loader2 } from "lucide-react";
-import DashboardPage from "./pages/DashboardPage";
-import AuthPage from "./pages/AuthPage";
-import { ErrorBoundary } from "./components/ErrorBoundary";
+import DashboardPage from "@/pages/DashboardPage";
+import AuthPage from "@/pages/AuthPage";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { Toaster } from "@/components/ui/toaster";
-import { useUser } from "./hooks/use-user";
+import { useUser } from "@/hooks/use-user";
 
 // Loading spinner component
 function LoadingSpinner() {
@@ -50,13 +50,14 @@ function App() {
   // If user is logged in, show dashboard or 404
   return (
     <Switch>
-      <Route path="/" component={DashboardPage} />
-      <Route path="/dashboard" component={DashboardPage} />
-      <Route component={NotFound} />
+      <Route path="/" component={() => <DashboardPage />} />
+      <Route path="/dashboard" component={() => <DashboardPage />} />
+      <Route component={() => <NotFound />} />
     </Switch>
   );
 }
 
+// Wrap the app with error boundary and toaster
 export default function AppWrapper() {
   return (
     <ErrorBoundary>
