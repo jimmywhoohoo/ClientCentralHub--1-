@@ -1,28 +1,22 @@
-import { drizzle } from "drizzle-orm/neon-serverless";
-import { sql } from "drizzle-orm";
-import ws from "ws";
+import { drizzle } from 'drizzle-orm/neon-serverless';
+import { neon } from '@neondatabase/serverless';
 import * as schema from "@db/schema";
 
 if (!process.env.DATABASE_URL) {
-  throw new Error(
-    "DATABASE_URL must be set. Did you forget to provision a database?",
-  );
+  throw new Error("DATABASE_URL must be set. Did you forget to provision a database?");
 }
 
-export const db = drizzle({
-  connection: process.env.DATABASE_URL,
-  schema,
-  ws: ws,
-});
+const sql = neon(process.env.DATABASE_URL);
+export const db = drizzle(sql, { schema });
 
 // Export function for testing connection
-export const testConnection = async () => {
+export async function testConnection() {
   try {
-    await db.execute(sql`SELECT 1`);
+    const result = await sql`SELECT 1`;
     console.log('Database connection successful');
     return true;
   } catch (error) {
     console.error('Database connection failed:', error);
     throw error;
   }
-};
+}
