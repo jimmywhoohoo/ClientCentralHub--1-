@@ -1,11 +1,11 @@
 import passport from "passport";
-import { IVerifyOptions, Strategy as LocalStrategy } from "passport-local";
+import { Strategy as LocalStrategy } from "passport-local";
 import { type Express } from "express";
 import session from "express-session";
 import createMemoryStore from "memorystore";
 import { scrypt, randomBytes, timingSafeEqual } from "crypto";
 import { promisify } from "util";
-import { users, insertUserSchema, loginSchema, type User as SelectUser } from "@db/schema";
+import { users, insertUserSchema, loginSchema } from "@db/schema";
 import { db } from "@db";
 import { eq } from "drizzle-orm";
 
@@ -19,41 +19,26 @@ const crypto = {
   compare: async (suppliedPassword: string, storedPassword: string) => {
     const [hashedPassword, salt] = storedPassword.split(".");
     const hashedPasswordBuf = Buffer.from(hashedPassword, "hex");
-    const suppliedPasswordBuf = (await scryptAsync(
-      suppliedPassword,
-      salt,
-      64
-    )) as Buffer;
+    const suppliedPasswordBuf = (await scryptAsync(suppliedPassword, salt, 64)) as Buffer;
     return timingSafeEqual(hashedPasswordBuf, suppliedPasswordBuf);
   },
 };
 
-declare global {
-  namespace Express {
-    interface User extends SelectUser {}
-  }
-}
-
 export function setupAuth(app: Express) {
+  // Session setup
   const MemoryStore = createMemoryStore(session);
-  const sessionSettings: session.SessionOptions = {
-    secret: process.env.REPL_ID || "secure-client-portal",
-    resave: false,
-    saveUninitialized: false,
-    cookie: {},
-    store: new MemoryStore({
-      checkPeriod: 86400000, // prune expired entries every 24h
-    }),
-  };
+  app.use(
+    session({
+      secret: process.env.REPL_ID || "secure-client-portal",
+      resave: false,
+      saveUninitialized: false,
+      store: new MemoryStore({
+        checkPeriod: 86400000, // prune expired entries every 24h
+      }),
+    })
+  );
 
-  if (app.get("env") === "production") {
-    app.set("trust proxy", 1);
-    sessionSettings.cookie = {
-      secure: true,
-    };
-  }
-
-  app.use(session(sessionSettings));
+  // Passport setup
   app.use(passport.initialize());
   app.use(passport.session());
 
@@ -70,15 +55,11 @@ export function setupAuth(app: Express) {
           return done(null, false, { message: "Incorrect username." });
         }
 
-        // Check if user is active
-        if (!user.active) {
-          return done(null, false, { message: "Account is inactive." });
-        }
-
         const isMatch = await crypto.compare(password, user.password);
         if (!isMatch) {
           return done(null, false, { message: "Incorrect password." });
         }
+
         return done(null, user);
       } catch (err) {
         return done(err);
@@ -103,7 +84,7 @@ export function setupAuth(app: Express) {
     }
   });
 
-  // Add registration endpoint
+  // Auth routes
   app.post("/api/register", async (req, res) => {
     try {
       const result = insertUserSchema.safeParse(req.body);
@@ -133,28 +114,35 @@ export function setupAuth(app: Express) {
       const hashedPassword = await crypto.hash(password);
 
       // Create new user
-      const [newUser] = await db.insert(users)
+      const [user] = await db.insert(users)
         .values({
           username,
           password: hashedPassword,
           email,
           fullName,
           companyName,
-          role: 'user',
-          active: true,
         })
         .returning();
 
-      res.json({
-        ok: true,
-        message: "Registration successful",
-        user: {
-          id: newUser.id,
-          username: newUser.username,
-          email: newUser.email,
-          fullName: newUser.fullName,
-          role: newUser.role,
+      // Auto login after registration
+      req.login(user, (err) => {
+        if (err) {
+          return res.status(500).json({
+            ok: false,
+            message: "Registration successful but login failed"
+          });
         }
+
+        res.json({
+          ok: true,
+          message: "Registration successful",
+          user: {
+            id: user.id,
+            username: user.username,
+            email: user.email,
+            fullName: user.fullName,
+          }
+        });
       });
     } catch (error) {
       console.error("Registration error:", error);
@@ -168,27 +156,33 @@ export function setupAuth(app: Express) {
   app.post("/api/login", (req, res, next) => {
     const result = loginSchema.safeParse(req.body);
     if (!result.success) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         ok: false,
-        message: result.error.issues.map(i => i.message).join(", ") 
+        message: result.error.issues.map(i => i.message).join(", ")
       });
     }
 
-    passport.authenticate("local", (err: any, user: Express.User, info: IVerifyOptions) => {
+    passport.authenticate("local", (err: any, user: Express.User | false, info: any) => {
       if (err) {
-        return next(err);
-      }
-
-      if (!user) {
-        return res.status(400).json({ 
+        return res.status(500).json({
           ok: false,
-          message: info.message ?? "Login failed"
+          message: "Login failed"
         });
       }
 
-      req.logIn(user, (err) => {
+      if (!user) {
+        return res.status(400).json({
+          ok: false,
+          message: info.message || "Login failed"
+        });
+      }
+
+      req.login(user, (err) => {
         if (err) {
-          return next(err);
+          return res.status(500).json({
+            ok: false,
+            message: "Login failed"
+          });
         }
 
         return res.json({
@@ -199,7 +193,6 @@ export function setupAuth(app: Express) {
             username: user.username,
             email: user.email,
             fullName: user.fullName,
-            role: user.role,
           }
         });
       });
@@ -209,14 +202,14 @@ export function setupAuth(app: Express) {
   app.post("/api/logout", (req, res) => {
     req.logout((err) => {
       if (err) {
-        return res.status(500).json({ 
+        return res.status(500).json({
           ok: false,
-          message: "Logout failed" 
+          message: "Logout failed"
         });
       }
-      res.json({ 
-        ok: true, 
-        message: "Logout successful" 
+      res.json({
+        ok: true,
+        message: "Logout successful"
       });
     });
   });
@@ -224,19 +217,16 @@ export function setupAuth(app: Express) {
   app.get("/api/user", (req, res) => {
     if (req.isAuthenticated()) {
       const user = req.user;
-      // Only send necessary user data
-      const safeUser = {
+      return res.json({
         id: user.id,
         username: user.username,
         email: user.email,
         fullName: user.fullName,
-        role: user.role,
-      };
-      return res.json(safeUser);
+      });
     }
-    res.status(401).json({ 
+    res.status(401).json({
       ok: false,
-      message: "Not logged in" 
+      message: "Not logged in"
     });
   });
 }

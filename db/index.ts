@@ -9,9 +9,6 @@ if (!process.env.DATABASE_URL) {
 }
 
 // Create the connection
-const client = postgres(process.env.DATABASE_URL, {
-  ssl: true,
-  max: 1
-});
+const client = postgres(process.env.DATABASE_URL);
 
 export const db = drizzle(client, { schema });
