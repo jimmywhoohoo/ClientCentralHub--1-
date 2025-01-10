@@ -5,7 +5,7 @@ import session from "express-session";
 import createMemoryStore from "memorystore";
 import { scrypt, randomBytes, timingSafeEqual } from "crypto";
 import { promisify } from "util";
-import { users, UserRole, clientRegisterSchema, loginSchema, adminLoginSchema } from "@db/schema";
+import { users, UserRole } from "@db/schema";
 import { db } from "@db";
 import { eq, and } from "drizzle-orm";
 
@@ -42,39 +42,10 @@ export function setupAuth(app: Express) {
   app.use(passport.initialize());
   app.use(passport.session());
 
-  // Client authentication strategy
-  passport.use('client-local', new LocalStrategy(async (username, password, done) => {
-    try {
-      const [user] = await db
-        .select()
-        .from(users)
-        .where(
-          and(
-            eq(users.username, username),
-            eq(users.role, UserRole.CLIENT),
-            eq(users.active, true)
-          )
-        )
-        .limit(1);
-
-      if (!user) {
-        return done(null, false, { message: "Invalid credentials." });
-      }
-
-      const isMatch = await crypto.compare(password, user.password);
-      if (!isMatch) {
-        return done(null, false, { message: "Invalid credentials." });
-      }
-
-      return done(null, user);
-    } catch (err) {
-      return done(err);
-    }
-  }));
-
   // Admin authentication strategy
   passport.use('admin-local', new LocalStrategy(async (username, password, done) => {
     try {
+      console.log('Attempting admin login for:', username);
       const [user] = await db
         .select()
         .from(users)
@@ -87,17 +58,22 @@ export function setupAuth(app: Express) {
         )
         .limit(1);
 
+      console.log('Found admin user:', user ? 'yes' : 'no');
+
       if (!user) {
         return done(null, false, { message: "Invalid admin credentials." });
       }
 
       const isMatch = await crypto.compare(password, user.password);
+      console.log('Password match:', isMatch ? 'yes' : 'no');
+
       if (!isMatch) {
         return done(null, false, { message: "Invalid admin credentials." });
       }
 
       return done(null, user);
     } catch (err) {
+      console.error('Admin auth error:', err);
       return done(err);
     }
   }));
@@ -119,136 +95,13 @@ export function setupAuth(app: Express) {
     }
   });
 
-  // Client registration
-  app.post("/api/register", async (req, res) => {
-    try {
-      const result = clientRegisterSchema.safeParse(req.body);
-      if (!result.success) {
-        return res.status(400).json({
-          ok: false,
-          message: result.error.issues.map(i => i.message).join(", ")
-        });
-      }
-
-      const { username, password, email, fullName, companyName } = result.data;
-
-      // Check if username already exists
-      const [existingUser] = await db
-        .select()
-        .from(users)
-        .where(eq(users.username, username))
-        .limit(1);
-
-      if (existingUser) {
-        return res.status(400).json({
-          ok: false,
-          message: "Username already exists"
-        });
-      }
-
-      // Hash password and create user
-      const hashedPassword = await crypto.hash(password);
-      const [user] = await db.insert(users)
-        .values({
-          username,
-          password: hashedPassword,
-          email,
-          fullName,
-          companyName,
-          role: UserRole.CLIENT,
-          active: true,
-        })
-        .returning();
-
-      req.login(user, (err) => {
-        if (err) {
-          return res.status(500).json({
-            ok: false,
-            message: "Registration successful but login failed"
-          });
-        }
-
-        res.json({
-          ok: true,
-          message: "Registration successful",
-          user: {
-            id: user.id,
-            username: user.username,
-            email: user.email,
-            fullName: user.fullName,
-            role: user.role,
-          }
-        });
-      });
-    } catch (error) {
-      console.error("Registration error:", error);
-      res.status(500).json({
-        ok: false,
-        message: "Registration failed"
-      });
-    }
-  });
-
-  // Client login
-  app.post("/api/login", (req, res, next) => {
-    const result = loginSchema.safeParse(req.body);
-    if (!result.success) {
-      return res.status(400).json({
-        ok: false,
-        message: result.error.issues.map(i => i.message).join(", ")
-      });
-    }
-
-    passport.authenticate("client-local", (err: any, user: Express.User | false, info: any) => {
-      if (err) {
-        return res.status(500).json({
-          ok: false,
-          message: "Login failed"
-        });
-      }
-
-      if (!user) {
-        return res.status(400).json({
-          ok: false,
-          message: info.message || "Invalid credentials"
-        });
-      }
-
-      req.login(user, (err) => {
-        if (err) {
-          return res.status(500).json({
-            ok: false,
-            message: "Login failed"
-          });
-        }
-
-        return res.json({
-          ok: true,
-          message: "Login successful",
-          user: {
-            id: user.id,
-            username: user.username,
-            email: user.email,
-            fullName: user.fullName,
-            role: user.role,
-          }
-        });
-      });
-    })(req, res, next);
-  });
-
-  // Admin login
+  // Admin login route
   app.post("/api/admin/login", (req, res, next) => {
-    const result = adminLoginSchema.safeParse(req.body);
-    if (!result.success) {
-      return res.status(400).json({
-        ok: false,
-        message: result.error.issues.map(i => i.message).join(", ")
-      });
-    }
+    console.log('Admin login attempt:', req.body);
 
     passport.authenticate("admin-local", (err: any, user: Express.User | false, info: any) => {
       if (err) {
+        console.error('Admin login error:', err);
         return res.status(500).json({
           ok: false,
           message: "Login failed"
@@ -264,6 +117,7 @@ export function setupAuth(app: Express) {
 
       req.login(user, (err) => {
         if (err) {
+          console.error('Admin session error:', err);
           return res.status(500).json({
             ok: false,
             message: "Login failed"

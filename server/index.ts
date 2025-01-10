@@ -44,6 +44,7 @@ app.use((req, res, next) => {
   try {
     // Initialize database and create admin user
     await initializeDatabase();
+    console.log("Database initialized successfully");
 
     // Set up authentication before registering routes
     setupAuth(app);
