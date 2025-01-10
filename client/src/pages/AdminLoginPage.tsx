@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { useUser } from "../hooks/use-user";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -8,24 +7,26 @@ import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
 import { Shield } from "lucide-react";
 
+type LoginResponse = {
+  ok: boolean;
+  message: string;
+  user?: {
+    id: number;
+    username: string;
+    email: string;
+    fullName: string;
+    role: string;
+  };
+};
+
 export default function AdminLoginPage() {
   const [, setLocation] = useLocation();
   const [formData, setFormData] = useState({
     username: "",
     password: "",
   });
-  const { login, user } = useUser();
+  const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
-
-  // Redirect if already authenticated as admin
-  if (user?.role === "admin") {
-    setLocation("/admin");
-    return null;
-  } else if (user) {
-    // If logged in but not admin, redirect to home
-    setLocation("/");
-    return null;
-  }
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -34,11 +35,29 @@ export default function AdminLoginPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsLoading(true);
+
     try {
-      await login({
-        username: formData.username,
-        password: formData.password,
+      const response = await fetch('/api/admin/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(formData),
+        credentials: 'include',
       });
+
+      const data: LoginResponse = await response.json();
+
+      if (!response.ok || !data.ok) {
+        throw new Error(data.message || 'Login failed');
+      }
+
+      toast({
+        title: "Success",
+        description: data.message,
+      });
+
       setLocation("/admin");
     } catch (error: any) {
       toast({
@@ -46,6 +65,8 @@ export default function AdminLoginPage() {
         description: error.message,
         variant: "destructive",
       });
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -68,6 +89,7 @@ export default function AdminLoginPage() {
                 value={formData.username}
                 onChange={handleChange}
                 required
+                disabled={isLoading}
               />
             </div>
 
@@ -80,18 +102,20 @@ export default function AdminLoginPage() {
                 value={formData.password}
                 onChange={handleChange}
                 required
+                disabled={isLoading}
               />
             </div>
 
-            <Button type="submit" className="w-full">
-              Login as Admin
+            <Button type="submit" className="w-full" disabled={isLoading}>
+              {isLoading ? "Logging in..." : "Login as Admin"}
             </Button>
 
             <Button
               type="button"
               variant="link"
               className="w-full"
-              onClick={() => setLocation("/auth")}
+              onClick={() => setLocation("/")}
+              disabled={isLoading}
             >
               Back to Regular Login
             </Button>

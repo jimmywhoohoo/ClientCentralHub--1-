@@ -25,7 +25,6 @@ const crypto = {
 };
 
 export function setupAuth(app: Express) {
-  // Session setup
   const MemoryStore = createMemoryStore(session);
   app.use(
     session({
@@ -38,11 +37,9 @@ export function setupAuth(app: Express) {
     })
   );
 
-  // Passport setup
   app.use(passport.initialize());
   app.use(passport.session());
 
-  // Admin authentication strategy
   passport.use('admin-local', new LocalStrategy(async (username, password, done) => {
     try {
       console.log('Attempting admin login for:', username);
@@ -61,14 +58,14 @@ export function setupAuth(app: Express) {
       console.log('Found admin user:', user ? 'yes' : 'no');
 
       if (!user) {
-        return done(null, false, { message: "Invalid admin credentials." });
+        return done(null, false, { message: "Invalid admin credentials" });
       }
 
       const isMatch = await crypto.compare(password, user.password);
       console.log('Password match:', isMatch ? 'yes' : 'no');
 
       if (!isMatch) {
-        return done(null, false, { message: "Invalid admin credentials." });
+        return done(null, false, { message: "Invalid admin credentials" });
       }
 
       return done(null, user);
@@ -95,7 +92,6 @@ export function setupAuth(app: Express) {
     }
   });
 
-  // Admin login route
   app.post("/api/admin/login", (req, res, next) => {
     console.log('Admin login attempt:', req.body);
 
@@ -104,7 +100,7 @@ export function setupAuth(app: Express) {
         console.error('Admin login error:', err);
         return res.status(500).json({
           ok: false,
-          message: "Login failed"
+          message: "An error occurred during login"
         });
       }
 
