@@ -1,5 +1,5 @@
-import { drizzle } from 'drizzle-orm/node-postgres';
-import PgPool from 'pg-pool';
+import { drizzle } from 'drizzle-orm/postgres-js';
+import postgres from 'postgres';
 import * as schema from "@db/schema";
 
 if (!process.env.DATABASE_URL) {
@@ -8,45 +8,45 @@ if (!process.env.DATABASE_URL) {
   );
 }
 
-// Create a connection pool with proper SSL and timeout settings
-const pool = new PgPool({
-  connectionString: process.env.DATABASE_URL,
-  max: 20,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 5000,
-  ssl: process.env.NODE_ENV === 'production' ? {
-    rejectUnauthorized: false
-  } : undefined
+// Configure SQL client with proper SSL settings
+const client = postgres(process.env.DATABASE_URL, {
+  max: 10,
+  idle_timeout: 30,
+  connect_timeout: 10,
+  ssl: { rejectUnauthorized: false }, // Always use SSL with rejectUnauthorized: false
+  connection: {
+    application_name: "secure-client-portal"
+  }
 });
 
 // Create the database instance with schema
-export const db = drizzle(pool, { schema });
+export const db = drizzle(client, { schema });
 
 // Export function for testing connection
 export async function testConnection() {
-  try {
-    // Test using raw query with timeout
-    const result = await Promise.race([
-      pool.query('SELECT NOW()'),
-      new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Database connection timeout')), 5000)
-      )
-    ]);
+  let retries = 5;
+  while (retries > 0) {
+    try {
+      const result = await client`SELECT NOW()`;
+      console.log('Database connection successful');
+      console.log("Database connection established with:");
+      console.log(`- Host: ${process.env.PGHOST}`);
+      console.log(`- Database: ${process.env.PGDATABASE}`);
+      console.log(`- Port: ${process.env.PGPORT}`);
 
-    console.log('Database connection successful');
-    console.log("Database connection established with:");
-    console.log(`- Host: ${process.env.PGHOST}`);
-    console.log(`- Database: ${process.env.PGDATABASE}`);
-    console.log(`- Port: ${process.env.PGPORT}`);
-
-    return true;
-  } catch (error) {
-    console.error('Database connection failed:', error);
-    throw error;
+      return true;
+    } catch (error) {
+      console.error(`Database connection attempt failed (${retries} retries left):`, error);
+      retries--;
+      if (retries === 0) throw error;
+      // Wait for 2 seconds before retrying
+      await new Promise(resolve => setTimeout(resolve, 2000));
+    }
   }
+  return false;
 }
 
-// Cleanup function for graceful shutdown
-export async function closeDatabase() {
-  await pool.end();
-}
+// Handle client cleanup
+process.on('exit', () => {
+  client.end().catch(console.error);
+});
