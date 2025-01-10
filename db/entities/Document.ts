@@ -11,7 +11,7 @@ export class Document {
   @Column({ type: "text" })
   name!: string;
 
-  @Column({ nullable: true, type: "text" })
+  @Column({ type: "text", nullable: true })
   description?: string;
 
   @Column({ name: "owner_id", type: "integer" })
@@ -21,10 +21,18 @@ export class Document {
   @JoinColumn({ name: "owner_id" })
   owner!: User;
 
-  @Column({ name: "created_at", type: "datetime", default: () => "CURRENT_TIMESTAMP" })
+  @Column({ 
+    name: "created_at",
+    type: "datetime",
+    default: () => "CURRENT_TIMESTAMP"
+  })
   createdAt!: Date;
 
-  @Column({ name: "updated_at", type: "datetime", default: () => "CURRENT_TIMESTAMP" })
+  @Column({ 
+    name: "updated_at",
+    type: "datetime",
+    default: () => "CURRENT_TIMESTAMP"
+  })
   updatedAt!: Date;
 
   @Column({ name: "is_archived", type: "boolean", default: false })
@@ -33,7 +41,10 @@ export class Document {
   @Column({ type: "simple-json", nullable: true })
   metadata?: Record<string, any>;
 
-  @Column({ type: "simple-json", default: '{"public": false, "collaborators": []}' })
+  @Column({ 
+    type: "simple-json", 
+    default: '{"public": false, "collaborators": []}'
+  })
   permissions!: {
     public: boolean;
     collaborators: number[];

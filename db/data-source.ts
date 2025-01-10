@@ -1,7 +1,9 @@
 import "reflect-metadata";
 import { DataSource } from "typeorm";
 import { join } from "path";
-import { User, Document, DocumentVersion } from "./entities";
+import { User } from "./entities/User";
+import { Document } from "./entities/Document";
+import { DocumentVersion } from "./entities/DocumentVersion";
 
 // Create TypeORM data source
 export const AppDataSource = new DataSource({
@@ -9,7 +11,7 @@ export const AppDataSource = new DataSource({
   database: join(process.cwd(), "database.sqlite"),
   entities: [User, Document, DocumentVersion],
   synchronize: true, // Only for development
-  logging: ["error", "warn"],
+  logging: true,
   subscribers: [],
   migrations: [],
 });
@@ -22,7 +24,6 @@ export const initializeDatabase = async () => {
       console.log("Data Source has been initialized!");
       return true;
     }
-    console.log("Data Source already initialized");
     return true;
   } catch (error) {
     console.error("Error during Data Source initialization:", error);

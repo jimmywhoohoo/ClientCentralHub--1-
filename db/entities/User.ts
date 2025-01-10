@@ -7,7 +7,7 @@ export class User {
   @PrimaryGeneratedColumn()
   id!: number;
 
-  @Column({ unique: true, type: "text" })
+  @Column({ type: "text", unique: true })
   username!: string;
 
   @Column({ type: "text" })
@@ -28,7 +28,11 @@ export class User {
   @Column({ type: "boolean", default: true })
   active!: boolean;
 
-  @Column({ name: "created_at", type: "datetime", default: () => "CURRENT_TIMESTAMP" })
+  @Column({ 
+    name: "created_at", 
+    type: "datetime", 
+    default: () => "CURRENT_TIMESTAMP" 
+  })
   createdAt!: Date;
 
   @OneToMany(() => Document, (document) => document.owner)

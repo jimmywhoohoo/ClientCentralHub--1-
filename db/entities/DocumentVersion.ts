@@ -28,9 +28,13 @@ export class DocumentVersion {
   @JoinColumn({ name: "created_by_id" })
   createdBy!: User;
 
-  @Column({ name: "created_at", type: "datetime", default: () => "CURRENT_TIMESTAMP" })
+  @Column({ 
+    name: "created_at", 
+    type: "datetime",
+    default: () => "CURRENT_TIMESTAMP"
+  })
   createdAt!: Date;
 
-  @Column({ nullable: true, type: "text" })
+  @Column({ type: "text", nullable: true })
   comment?: string;
 }

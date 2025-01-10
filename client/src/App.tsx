@@ -4,9 +4,6 @@ import { AlertCircle, Loader2 } from "lucide-react";
 import DashboardPage from "@/pages/DashboardPage";
 import AuthPage from "@/pages/AuthPage";
 import AdminLoginPage from "@/pages/AdminLoginPage";
-import AdminPage from "@/pages/AdminPage";
-import { ErrorBoundary } from "@/components/ErrorBoundary";
-import { Toaster } from "@/components/ui/toaster";
 import { useUser } from "@/hooks/use-user";
 
 // Loading spinner component
@@ -29,7 +26,7 @@ function NotFound() {
             <h1 className="text-2xl font-bold">404 Page Not Found</h1>
           </div>
           <p className="mt-4 text-sm text-muted-foreground">
-            The page you're looking for doesn't exist or you don't have permission to access it.
+            The page you're looking for doesn't exist.
           </p>
         </CardContent>
       </Card>
@@ -38,23 +35,27 @@ function NotFound() {
 }
 
 function App() {
+  const { user, isLoading } = useUser();
+
+  if (isLoading) {
+    return <LoadingSpinner />;
+  }
+
   return (
     <Switch>
-      <Route path="/" component={DashboardPage} />
-      <Route path="/auth" component={AuthPage} />
-      <Route path="/admin/login" component={AdminLoginPage} />
-      <Route path="/admin" component={AdminPage} />
-      <Route component={NotFound} />
+      {!user ? (
+        <>
+          <Route path="/admin/login" component={AdminLoginPage} />
+          <Route path="*" component={AuthPage} />
+        </>
+      ) : (
+        <>
+          <Route path="/" component={DashboardPage} />
+          <Route component={NotFound} />
+        </>
+      )}
     </Switch>
   );
 }
 
-// Wrap the app with error boundary and toaster
-export default function AppWrapper() {
-  return (
-    <ErrorBoundary>
-      <App />
-      <Toaster />
-    </ErrorBoundary>
-  );
-}
+export default App;
