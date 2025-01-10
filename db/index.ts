@@ -1,11 +1,17 @@
-import { drizzle } from "drizzle-orm/postgres-js";
-import postgres from "postgres";
+import { drizzle } from "drizzle-orm/node-postgres";
+import { Pool } from "pg";
 import * as schema from "@db/schema";
 
-if (!process.env.DATABASE_URL) {
-  throw new Error("DATABASE_URL must be set. Did you forget to provision a database?");
+if (!process.env.PGDATABASE || !process.env.PGUSER || !process.env.PGPASSWORD || !process.env.PGHOST) {
+  throw new Error("Database credentials not found. Make sure the database is provisioned.");
 }
 
-// Create the connection
-const queryClient = postgres(process.env.DATABASE_URL);
-export const db = drizzle(queryClient, { schema });
+const pool = new Pool({
+  host: process.env.PGHOST,
+  user: process.env.PGUSER,
+  password: process.env.PGPASSWORD,
+  database: process.env.PGDATABASE,
+  port: parseInt(process.env.PGPORT || "5432", 10),
+});
+
+export const db = drizzle(pool, { schema });
