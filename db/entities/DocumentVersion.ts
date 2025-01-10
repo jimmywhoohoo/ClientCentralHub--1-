@@ -1,7 +1,7 @@
 import "reflect-metadata";
 import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn } from "typeorm";
-import { Document } from "./Document";
-import { User } from "./User";
+import type { Document } from "./Document";
+import type { User } from "./User";
 
 @Entity("document_versions")
 export class DocumentVersion {
@@ -11,7 +11,7 @@ export class DocumentVersion {
   @Column({ name: "document_id", type: "integer" })
   documentId!: number;
 
-  @ManyToOne(() => Document, (document) => document.versions)
+  @ManyToOne("Document", (document: Document) => document.versions)
   @JoinColumn({ name: "document_id" })
   document!: Document;
 
@@ -24,13 +24,13 @@ export class DocumentVersion {
   @Column({ name: "created_by_id", type: "integer" })
   createdById!: number;
 
-  @ManyToOne(() => User)
+  @ManyToOne("User")
   @JoinColumn({ name: "created_by_id" })
   createdBy!: User;
 
   @Column({ 
     name: "created_at", 
-    type: "datetime",
+    type: "timestamp",
     default: () => "CURRENT_TIMESTAMP"
   })
   createdAt!: Date;

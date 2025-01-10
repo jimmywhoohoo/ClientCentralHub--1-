@@ -3,7 +3,7 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { setupAuth } from "./auth";
-import { AppDataSource } from "@db/data-source";
+import { AppDataSource, initializeDatabase } from "@db/data-source";
 
 const app = express();
 app.use(express.json());
@@ -40,13 +40,14 @@ app.use((req, res, next) => {
   next();
 });
 
-(async () => {
+const MAX_RETRIES = 5;
+const RETRY_DELAY = 2000;
+
+async function startServer(retryCount = 0) {
   try {
-    // Initialize TypeORM database connection
-    if (!AppDataSource.isInitialized) {
-      await AppDataSource.initialize();
-      console.log("Database initialized successfully");
-    }
+    // Initialize database connection
+    await initializeDatabase();
+    console.log("Database initialized successfully");
 
     // Set up authentication before registering routes
     setupAuth(app);
@@ -74,6 +75,15 @@ app.use((req, res, next) => {
     });
   } catch (error) {
     console.error("Failed to start server:", error);
-    process.exit(1);
+
+    if (retryCount < MAX_RETRIES) {
+      console.log(`Retrying in ${RETRY_DELAY}ms... (Attempt ${retryCount + 1}/${MAX_RETRIES})`);
+      setTimeout(() => startServer(retryCount + 1), RETRY_DELAY);
+    } else {
+      console.error("Max retries reached. Exiting...");
+      process.exit(1);
+    }
   }
-})();
+}
+
+startServer();

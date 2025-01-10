@@ -1,6 +1,6 @@
 import "reflect-metadata";
 import { Entity, PrimaryGeneratedColumn, Column, OneToMany } from "typeorm";
-import { Document } from "./Document";
+import type { Document } from "./Document";
 
 @Entity("users")
 export class User {
@@ -30,11 +30,11 @@ export class User {
 
   @Column({ 
     name: "created_at", 
-    type: "datetime", 
+    type: "timestamp", 
     default: () => "CURRENT_TIMESTAMP" 
   })
   createdAt!: Date;
 
-  @OneToMany(() => Document, (document) => document.owner)
+  @OneToMany("Document", (document: Document) => document.owner)
   documents?: Document[];
 }
