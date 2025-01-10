@@ -1,4 +1,4 @@
-import { db } from "@db";
+import { db, testConnection } from "@db";
 import { users, UserRole } from "@db/schema";
 import { eq } from "drizzle-orm";
 import { scrypt, randomBytes } from "crypto";
@@ -15,6 +15,31 @@ async function hashPassword(password: string) {
 
 export async function initializeDatabase() {
   try {
+    // Test connection first
+    const isConnected = await testConnection();
+    if (!isConnected) {
+      throw new Error("Failed to establish database connection");
+    }
+
+    console.log("Database connection successful");
+
+    // Create tables if they don't exist
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS users (
+        id SERIAL PRIMARY KEY,
+        username TEXT NOT NULL UNIQUE,
+        password TEXT NOT NULL,
+        email TEXT NOT NULL,
+        full_name TEXT NOT NULL,
+        company_name TEXT NOT NULL,
+        role TEXT NOT NULL DEFAULT 'client',
+        active BOOLEAN NOT NULL DEFAULT true,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    console.log("Database tables initialized");
+
     // Check if admin exists
     const adminExists = await db.select()
       .from(users)

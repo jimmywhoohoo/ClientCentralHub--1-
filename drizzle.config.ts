@@ -3,15 +3,29 @@ import * as dotenv from "dotenv";
 
 dotenv.config();
 
-if (!process.env.DATABASE_URL) {
-  throw new Error("DATABASE_URL, ensure the database is provisioned");
+const {
+  PGHOST,
+  PGUSER,
+  PGPASSWORD,
+  PGDATABASE,
+  PGPORT
+} = process.env;
+
+if (!PGHOST || !PGUSER || !PGPASSWORD || !PGDATABASE || !PGPORT) {
+  throw new Error("Database configuration missing. Please ensure the database is provisioned");
 }
 
 export default defineConfig({
   out: "./migrations",
   schema: "./db/schema.ts",
-  dialect: "postgresql",
+  driver: "pg",
   dbCredentials: {
-    url: process.env.DATABASE_URL,
+    host: PGHOST,
+    user: PGUSER,
+    password: PGPASSWORD,
+    database: PGDATABASE,
+    port: parseInt(PGPORT, 10),
   },
+  verbose: true,
+  strict: true
 });
