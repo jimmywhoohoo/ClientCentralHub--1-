@@ -14,6 +14,16 @@ export const users = pgTable("users", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+// Document table definition
+export const documents = pgTable("documents", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  content: text("content"),
+  userId: serial("user_id").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 // Schema validation
 export const loginSchema = z.object({
   username: z.string().min(1, "Username is required"),
@@ -27,3 +37,4 @@ export const selectUserSchema = createSelectSchema(users);
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
 export type LoginInput = z.infer<typeof loginSchema>;
+export type Document = typeof documents.$inferSelect;
